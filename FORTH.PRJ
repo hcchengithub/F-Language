@@ -1,0 +1,6 @@
+forth.c    (forth.h)
+dicforth.c (forth.h)
+dicenv.c  (forth.h)
+chforth.c (forth.h)
+diccrypt.c (forth.h)
+assembly.c (forth.h)

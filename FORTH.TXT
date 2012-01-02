@@ -1,0 +1,1357 @@
+
+
+   Chern's FORTH interpreter V1.0     (c) 1995  H.C. Chen
+
+  __________________________________________________________________________________________________________
+    Command set      ³ Stack Diag ³    Description
+  __________________________________________________________________________________________________________
+    .CMOS_TABLE      ³            ³ Print CMOS table to stdout
+    CMOS_SIZE        ³ - size     ³ Push cmos_table size
+    CMOS_TABLE       ³ - addr     ³ Push cmos_table starting address
+    DROP             ³ n -        ³ Delete top of stack
+    DROPALL          ³ ... -      ³ Clear stack
+    DUP              ³ n - n n    ³ Duplicate top of stack
+    IF               ³ n -        ³ If TOS != 0 do following until ELSE or ENDIF
+    ELSE             ³            ³ If TOS == 0 do following until ENDIF
+    ENDIF            ³            ³ No operation
+    EXIT             ³            ³ Exit to DOS
+    GET_CMOS_TABLE   ³            ³ Get CMOS table from the given file to memory.
+    MASK_SIZE        ³ - size     ³ Push mask_table size in entries
+    MASK_TABLE       ³ - addr     ³ Push mask_table starting address
+    PEEK             ³ addr - n   ³ Get a byte from the address
+    POKE             ³ addr n -   ³ Put a byte to the address
+    STACK            ³            ³ Show stack
+    SWAP             ³ a b - b a  ³ Swap two entries on top of stack
+    #END             ³            ³ Stop FORTH interpreting
+    +                ³ a b - sum  ³ Mathematical ADD
+    &                ³ a b - and  ³ Logical AND
+    |                ³ a b - or   ³ Logical OR
+    ^                ³ a b - xor  ³ Logical XOR
+    ~                ³ a - ~a     ³ Logical NOT
+    $                ³ - hex      ³ Hexdecimal e.g. $11 $23
+    0                ³ - decimal  ³ Decimal    e.g. 01 0123 0456
+    %                ³ - n        ³ Environment variable e.g. %PATH %MODEL
+    //               ³            ³ Comment, interpreter ignore every thing to end of line
+  __________________________________________________________________________________________________________
+
+   Note: 1.   Stack diagram specifies the contains of stack
+              before (left to '-') and after (right to '-')
+              the execution of the command.
+
+
+  __________________________________________________________________________________________________________
+  Chern's FORTH interpreter V1.1
+
+  1. command line argument improved
+
+     No argument: Debug/Learning mode
+                  get_cmos_table command no operation.
+
+     Script file: Debug/Learning mode.
+                  get_cmos_table command try to load mask table
+                  and cmos table to memory.
+
+     Both Script file and Script name:
+                  Free run.
+
+  2. .cmos_table command dump entire mask and cmos table.
+     Now press any key can pause the dumpping.
+
+  3. An unknown command will show
+        xxx? Unknown
+     instead of showing 'Syntax error' or something.
+
+  4. When IF command and ELSE command skip invalid condition and reach
+     the end of input stream, without ENDIF, we now treats this case
+     as OK. Because forth() is going to quit at this point. Another
+     reason is that forth() return FAIL only when it is given an
+     unknown command and don't know how to do, any other case is out
+     of consideration and would be the programer's responsibility.
+
+
+  __________________________________________________________________________________________________________
+  Chern's FORTH interpreter V2.4                                    1995.6.13
+
+  1. IF ELSE ENDIF has been improved. They now supports nested
+     structure just as other programming languages. The syntax check
+     is also improved. So, ELSE and ENDIF are now unknown words. They
+     are used with IF command only.
+
+  2. #END command deleted. Because V2.3 supports macro call #END
+     command is now replaced by RET or ; command.
+
+  3. CMOS_SIZE and MASK_SIZE commands are now redefined, they now get
+     the address of the variable instead of the value.
+
+  4. EXIT command deleted. It is now an unknown word to forth() but
+     still you can use it to quit running a program because an unknown
+     word always break a program.
+
+  5. RET (or ;) command terminates the current macro and return to the
+     caller. If it's the root level then return to DOS and the ERRORLEVEL
+     will be 0 if the stack is empty or the value of TOS. The significant
+     bits are TOS[7:0].
+
+  6. DEBUG command infects ECHO, but to modify ECHO won't infect DEBUG.
+
+  __________________________________________________________________________________________________________
+   Command set      ³ Stack Diag ³    Description
+  __________________________________________________________________________________________________________
+   0                ³ - decimal  ³ Decimal    e.g. 01 0123 0456
+   $                ³ - hex      ³ Hexdecimal e.g. $11 $23
+   &                ³ a b - and  ³ bit-wise logical AND
+   ^                ³ a b - xor  ³ bit-wise Logical XOR
+   |                ³ a b - or   ³ bit-wise Logical OR
+   ~                ³ a - ~a     ³ bit-wise Logical NOT
+   <<             * ³ n - n<<1   ³ Bit-wise shift left
+   >>             * ³ n - n>>1   ³ Bit-wise shift right
+   AND            * ³ a b - AND  ³ logical and
+   OR             * ³ a b - OR   ³ logical OR
+   NOT            * ³ a - NOT    ³ logical NOT
+   +                ³ a b - sum  ³ Mathematical operation
+   -              * ³ a b - sub  ³ Mathematical operation
+   *              * ³ a b - mul  ³ Mathematical operation
+   /              * ³ a b - div  ³ Mathematical operation
+   <              * ³ a b - a<b  ³ Less then compare
+   >              * ³ a b - a>b  ³ Bigger then compare
+   <=             * ³ a b - a<=b ³ Less then or equal compare
+   ==             * ³ a b - a==b ³ Equal compare
+   >=             * ³ a b - a>=b ³ Bigger or equal compare
+   .S               ³ -          ³ Show stack (alias of STACK command)
+   STACK            ³ -          ³ Show stack, same as .S command
+   DUP              ³ n - n n    ³ Duplicate top of stack
+   SWAP             ³ a b - b a  ³ Swap two entries on top of stack
+   OVER           * ³ a b - a b a³ stack operation
+   OVER2          * ³ a b c - a b c a ³ stack operation
+   DROP             ³ n -        ³ Delete top of stack
+   DROPALL          ³ ... -      ³ Clear stack
+  __________________________________________________________________________________________________________
+   I              * ³ port - c   ³ input a byte from the port address
+   O              * ³ port c -   ³ output a byte to the port address
+   IW             * ³ port - w   ³ input a word from the port address
+   OW             * ³ port w -   ³ output a word to the port address
+   OO             * ³ p c p c -  ³ double output for 8733X I/O chip
+   PEEK             ³ addr - c   ³ peek a byte from the address
+   POKE             ³ addr c -   ³ poke a byte to the address
+   PEEKW          * ³ addr - w   ³ peek a word from the address
+   POKEW          * ³ addr w -   ³ poke a word to the address
+   FPEEK          * ³ s o - byte ³ peek the byte on s:o far address
+   FPOKE          * ³ s o byte - ³ poke the byte to s:o far address
+   WAIT           * ³ ticks -    ³ wait ticks
+  __________________________________________________________________________________________________________
+   CLS            * ³ -          ³ clear screen
+   *S             * ³ addr -     ³ print the given string
+   ."             * ³ -          ³ print the following string till end of line
+   //               ³ -          ³ Comment, interpreter ignore every thing to end of line
+  __________________________________________________________________________________________________________
+   ;              * ³ -          ³ End of the #macro (alias of RET)
+   RET            * ³ -          ³ End of the #macro
+   IF             ! ³ f -        ³ If TOS != 0 do following until ELSE or ENDIF
+   DO             * ³ -          ³ DO LOOP is a infinite loop
+   ?BREAK         * ³ f -        ³ Used in DO LOOP only, Break the loop if f != 0
+   BREAK          * ³ -          ³ Used in DO LOOP only. Break the loop
+  __________________________________________________________________________________________________________
+   DEBUG          * ³ n -        ³ set debug wait ticks. if n==0 then free-run
+   ECHO           * ³ n -        ³ debug message on/off
+   SCRIPT         * ³ -          ³ switch input stream from the script file
+   STDIN          * ³ -          ³ switch input stream from the stdin
+  __________________________________________________________________________________________________________
+   IREGS          * ³ - addr     ³ get union IREGS's address
+   OREGS          * ³ - addr     ³ get union OREGS's address
+   SREGS          * ³ - addr     ³ get struct SREGS's address
+   INT86          * ³ -          ³ interrupt system call, see C language
+   INT86X         * ³ -          ³ interrupt system call, see C language
+  __________________________________________________________________________________________________________
+   GET_CMOS_TABLE   ³ -          ³ Get CMOS table from the given file to memory
+   CMOS_SIZE      ! ³ - addr     ³ cmos_table size variable's address
+   MASK_SIZE      ! ³ - addr     ³ mask_table size variable's address
+   CMOS_TABLE       ³ - addr     ³ cmos_table starting address
+   MASK_TABLE       ³ - addr     ³ mask_table starting address
+   .CMOS_TABLE      ³ -          ³ Print CMOS table to stdout
+  __________________________________________________________________________________________________________
+   %name            ³ - n        ³ get the given environment variable value (decimal)
+   THISPSP        * ³ - psp      ³ get the current PSP segment
+   PREVPSP        * ³ psp - psp  ³ get the previous level PSP segment
+   PSP2ENV        * ³ psp - env  ³ get the env segment of the given PSP
+   .ENV           * ³ -          ³ dump environment variables
+   GETENV         * ³ - addr     ³ get the env specified by next word
+   PUTENV         * ³ -          ³ add/modify the env as following assignment
+   SAVEENV        * ³ env -      ³ save the internal env to the given envionment segment
+  __________________________________________________________________________________________________________
+
+  Note: Stack diagram specifies the contains of stack
+        before (left to '-') and after (right to '-')
+        the execution of the command.
+
+
+  __________________________________________________________________________________________________________
+  Chern's FORTH interpreter V2.5                                    1995.6.15
+
+  1. Glossary
+
+       Script file:  the input file.
+             Macro:  '#' leading words in the script file.
+                     I called them 'script name' before, but from
+                     now on let's call them 'macro'.
+
+  2. Command line improved, now forth25 accept multiple forth words
+     given from command line. For example, previous version command
+     line can only be,
+
+         forth 950.f #PMJUMPER
+
+     only one macro '#PMJUMPER' will execute and it cannot be
+     anything else but a macro name. In this version, the command
+     line can be,
+
+         forth 950.f $4f 0 ##1449W
+
+     this provides a much wider use of forth25.exe. Note! macro name
+     in command line need double # now.
+
+  3. As mentioned above, macro name in command line must double # now.
+
+  4. New word 'RELOAD'  [ -- ]
+     Reload the script file. This new command is for a designer who
+     works under a multi-tasking environment and open one window for
+     forth25 and one for a editor. Once the editor update the script
+     file, we need RELOAD command to make it available to forth25.
+
+  5. New word 'PICK' stack operation
+     Stack diagram examples:
+     [ a b c d e f g 0 -- a b c d e f g ] no operation
+     [ a b c d e f g 1 -- a b c d e g f ] equal to SWAP
+     [ a b c d e f g 2 -- a b c d f g e ]
+     [ a b c d e f g 3 -- a b c e f g d ]
+     [ a b c d e f g 4 -- a b d e f g c ]
+     [ a b c d e f g 9 -- ] error "Pick under stack!"
+
+  6. New word 'ROLL' stack operation
+     Stack diagram examples:
+     [ a b c d e f g 0 -- a b c d e f g ] no operation
+     [ a b c d e f g 1 -- a b c d e g f ] equal to SWAP
+     [ a b c d e f g 2 -- a b c d g e f ]
+     [ a b c d e f g 3 -- a b c g d e f ]
+     [ a b c d e f g 4 -- a b g c d e f ]
+     [ a b c d e f g 9 -- ] error "Roll under stack!"
+
+
+  F30 modify only ." to ." "
+  F31 modify debug command for avoid from debug released macros.
+      -> modify debug command, call() function, debug only works
+         on #! leading macros.
+      -> debug command set debug value as before, new comamnd &debug get
+         debug variable's address, and so &echo.
+      -> new command &ss get ss's address.
+      -> when in debug mode and paused by CTRL , ALT or SHIFT, exit debug
+         mode if all three pause key are pressed.
+
+  __________________________________________________________________________________________________________
+  Chern's F32 interpreter                                            1995.9.4
+
+  F32 new commands
+  __________________________________________________________________________________________________________
+   Command set      ³ Stack Diag ³    Description
+  __________________________________________________________________________________________________________
+   !=               ³ a b - a!=b ³ true if not equal
+   &DEBUG           ³ - addr     ³ get DEBUG's addr
+   &ECHO            ³ - addr     ³ get ECHO's addr
+   &SS              ³ - addr     ³ get SS's addr
+   (D               ³ -          ³ debug block begin
+   D)               ³ -          ³ debug block end
+   .                ³ a -        ³ print a as decimal
+   .$               ³ a -        ³ print a as hexdecimal
+   ?EXIT            ³ f -        ³ exit if f!=0
+   BR               ³ a b - a|b  ³ alias of |
+   CALL             ³ - r        ³ spawn call. return errorlevel
+   CR               ³ -          ³ carrage return
+   E                ³ -          ³ Encrypt/Decrypt toggle
+   S                ³ -          ³ Show script file buffer
+   EXIT             ³ -          ³ exit Fxx return to DOS
+   GE               ³ a b - a>=b ³ alias of >=
+   GT               ³ a b - a>b  ³ alias of >
+   LE               ³ a b - a<=b ³ alias of <=
+   LT               ³ a b - a<b  ³ alias of <
+   SL               ³ a n - a<<n ³ alias of <<
+   SR               ³ a n - a>>n ³ alias of >>
+   XOR              ³ a b - a^b  ³ logical XOR
+   PICK             ³ ... n - ...³ pick the n'th stack to TOS
+   ROLL             ³ ... n - ...³ roll the TOS down to n'th stack
+   RELOAD           ³ -          ³ reload the script file
+  __________________________________________________________________________________________________________
+
+
+  F32 command set
+  __________________________________________________________________________________________________________
+   Command set      ³ Stack Diag ³    Description
+  __________________________________________________________________________________________________________
+   0                ³ - decimal  ³ Decimal    e.g. 01 0123 0456
+   $                ³ - hex      ³ Hexdecimal e.g. $11 $23
+   &                ³ a b - and  ³ bit-wise logical AND
+   ^                ³ a b - xor  ³ bit-wise Logical XOR
+   |                ³ a b - or   ³ bit-wise Logical OR
+   BR               ³ a b - a|b  ³ alias of |
+   ~                ³ a - ~a     ³ bit-wise Logical NOT
+   <<             * ³ n - n<<1   ³ Bit-wise shift left
+   SL               ³ a n - a<<n ³ alias of <<
+   >>             * ³ n - n>>1   ³ Bit-wise shift right
+   SR               ³ a n - a>>n ³ alias of >>
+   AND            * ³ a b - AND  ³ logical and
+   OR             * ³ a b - OR   ³ logical OR
+   NOT            * ³ a - NOT    ³ logical NOT
+   XOR              ³ a b - a^b  ³ logical XOR
+   +                ³ a b - sum  ³ Mathematical operation
+   -              * ³ a b - sub  ³ Mathematical operation
+   *              * ³ a b - mul  ³ Mathematical operation
+   /              * ³ a b - div  ³ Mathematical operation
+   <              * ³ a b - a<b  ³ Less then compare
+   LT               ³ a b - a<b  ³ alias of <
+   >              * ³ a b - a>b  ³ Bigger then compare
+   GT               ³ a b - a>b  ³ alias of >
+   <=             * ³ a b - a<=b ³ Less then or equal compare
+   LE               ³ a b - a<=b ³ alias of <=
+   ==             * ³ a b - a==b ³ Equal compare
+   !=               ³ a b - a!=b ³ true if not equal
+   >=             * ³ a b - a>=b ³ Bigger or equal compare
+   GE               ³ a b - a>=b ³ alias of >=
+   .S               ³ -          ³ Show stack (alias of STACK command)
+   STACK            ³ -          ³ Show stack, same as .S command
+   DUP              ³ n - n n    ³ Duplicate top of stack
+   SWAP             ³ a b - b a  ³ Swap two entries on top of stack
+   OVER           * ³ a b - a b a³ stack operation
+   OVER2          * ³ a b c - a b c a ³ stack operation
+   ROLL             ³ ... n - ...³ roll the TOS down to n'th stack, TOS is #0
+   PICK             ³ ... n - ...³ pick the n'th stack to TOS, TOS is #0
+   DROP             ³ n -        ³ Delete top of stack
+   DROPALL          ³ ... -      ³ Clear stack
+  __________________________________________________________________________________________________________
+   I              * ³ port - c   ³ input a byte from the port address
+   O              * ³ port c -   ³ output a byte to the port address
+   IW             * ³ port - w   ³ input a word from the port address
+   OW             * ³ port w -   ³ output a word to the port address
+   OO             * ³ p c p c -  ³ double output for 8733X I/O chip
+   PEEK             ³ addr - c   ³ peek a byte from the address
+   POKE             ³ addr c -   ³ poke a byte to the address
+   PEEKW          * ³ addr - w   ³ peek a word from the address
+   POKEW          * ³ addr w -   ³ poke a word to the address
+   FPEEK          * ³ s o - byte ³ peek the byte on s:o far address
+   FPOKE          * ³ s o byte - ³ poke the byte to s:o far address
+   WAIT           * ³ ticks -    ³ wait ticks
+  __________________________________________________________________________________________________________
+   CLS            * ³ -          ³ clear screen
+   *S             * ³ addr -     ³ print the given string
+   //               ³ -          ³ Comment, interpreter ignore every thing to end of line
+   .                ³ a -        ³ print a as decimal
+   .$               ³ a -        ³ print a as hexdecimal
+   ."             * ³ -          ³ print the following string till end of line
+   CR               ³ -          ³ carrage return
+  __________________________________________________________________________________________________________
+   ?EXIT            ³ f -        ³ exit if f!=0
+   EXIT             ³ -          ³ exit Fxx return to DOS
+   ;              * ³ -          ³ End of the #macro (alias of RET)
+   RET            * ³ -          ³ End of the #macro
+   IF             ! ³ f -        ³ If TOS != 0 do following until ELSE or ENDIF
+   DO             * ³ -          ³ DO LOOP is a infinite loop
+   ?BREAK         * ³ f -        ³ Used in DO LOOP only, Break the loop if f != 0
+   BREAK          * ³ -          ³ Used in DO LOOP only. Break the loop
+  __________________________________________________________________________________________________________
+   DEBUG          * ³ n -        ³ set debug wait ticks. if n==0 then free-run
+   ECHO           * ³ n -        ³ debug message on/off
+   SCRIPT         * ³ -          ³ switch input stream from the script file
+   STDIN          * ³ -          ³ switch input stream from the stdin
+   &DEBUG           ³ - addr     ³ get DEBUG's addr
+   &ECHO            ³ - addr     ³ get ECHO's addr
+   (D               ³ -          ³ debug block begin
+   D)               ³ -          ³ debug block end
+  __________________________________________________________________________________________________________
+   IREGS          * ³ - addr     ³ get union IREGS's address
+   OREGS          * ³ - addr     ³ get union OREGS's address
+   SREGS          * ³ - addr     ³ get struct SREGS's address
+   INT86          * ³ -          ³ interrupt system call, see C language
+   INT86X         * ³ -          ³ interrupt system call, see C language
+  __________________________________________________________________________________________________________
+   GET_CMOS_TABLE   ³ -          ³ Get CMOS table from the given file to memory
+   CMOS_SIZE      ! ³ - addr     ³ cmos_table size variable's address
+   MASK_SIZE      ! ³ - addr     ³ mask_table size variable's address
+   CMOS_TABLE       ³ - addr     ³ cmos_table starting address
+   MASK_TABLE       ³ - addr     ³ mask_table starting address
+   .CMOS_TABLE      ³ -          ³ Print CMOS table to stdout
+  __________________________________________________________________________________________________________
+   %name            ³ - n        ³ get the given environment variable value (decimal)
+   THISPSP        * ³ - psp      ³ get the current PSP segment
+   PREVPSP        * ³ psp - psp  ³ get the previous level PSP segment
+   PSP2ENV        * ³ psp - env  ³ get the env segment of the given PSP
+   .ENV           * ³ -          ³ dump environment variables
+   GETENV         * ³ - addr     ³ get the env specified by next word
+   PUTENV         * ³ -          ³ add/modify the env as following assignment
+   SAVEENV        * ³ env -      ³ save the internal env to the given envionment segment
+  __________________________________________________________________________________________________________
+   RELOAD           ³ -          ³ reload the script file
+   &SS              ³ - addr     ³ get SS's addr
+   CALL             ³ - r        ³ spawn call. return errorlevel
+   E                ³ -          ³ Encrypt/Decrypt toggle
+   S                ³ -          ³ Show script file buffer
+  __________________________________________________________________________________________________________
+
+   F43 command set
+  __________________________________________________________________________________________________________
+   aliSmb_rb ³       dev reg - data y/n  ³  read 1535_smb_bus with assigned device,reg
+   aliSmb_wb ³  dev reg data - y/n       ³  write 1535_smb_bus with assigned device,reg,data
+   banSmb_rb ³       dev reg - data y/n  ³  read ban_smb_bus with assigned device,reg
+   banSmb_wb ³  dev reg data - y/n       ³  write ban_smb_bus with assigned device,reg,data
+   px4Smb_rb ³       dev reg - data y/n  ³  read px4_smb_bus with assigned device,reg
+   px4Smb_wb ³  dev reg data - y/n       ³  write px4_smb_bus with assigned device,reg,data
+  __________________________________________________________________________________________________________
+  Note: Stack diagram specifies the contains of stack
+        before (left to '-') and after (right to '-')
+        the execution of the command.
+
+
+  F33 is reserved to Mr. Fam Yu
+  F34 fpeek and fpoke is failed if offset > 0x7fff.  fix this bug.
+
+
+  __________________________________________________________________________________________________________
+  Chern's F language interpreter R35                                 1996.3.31
+
+  o Improve the speed of loading the macro script file.
+  o Enlarge the stack size from 20 to 100 (unsigned int)
+  o Only one beep when under or over stack error occurs.
+  o Only one beep for unknown words.
+  o remove follosing words,
+
+       GET_CMOS_TABLE
+       CMOS_SIZE
+       MASK_SIZE
+       CMOS_TABLE
+       MASK_TABLE
+       .CMOS_TABLE
+
+  o New words,
+
+       ?RET   return if TOS != 0
+
+
+  __________________________________________________________________________________________________________
+  Chern's F language interpreter R36                                 1996.7.31
+
+  o Improve S command. When it is listing script buffer, press Shift,
+    Ctrl, or Alt to pause, press ESC to stop listing.
+
+  o Improve WAIT command. This command didn't work under Win311 or
+    Win95 before, because I access 40:6C BIOS time tick directly. New
+    aproch is via INT 1ah BIOS function call.
+
+  o Add a macro cache look up table. Save macro entry point when the
+    first time the macro is called. After that, the interpreter
+    doesn't need to do linear search in the script buffer any more, so
+    as to improve system performance very much.
+
+  o Add two commands
+    .MCACHE dump macro cache look up table. Press Shift, Ctrl, or Alt to
+            pause, press ESC to stop listing. The buffer size is 50 entries.
+    ClearCache Clear cache look up table.
+
+  o When enable debug feature, removed the requirement of the ! in macro
+    name.
+
+  o Add two command fpeekw and fpokew
+    FPEEKW    [seg off - word]  peek the word on seg:off far address
+    FPOKEW    [seg off word -]  poke the word to seg:off far address
+
+  o Add a new command SFIND to find a string in script buffer
+    For example  in script buffer DS:13f4='#w', SFIND #w will leave
+    13f6 (13F7 since F47) in stack. F interpreters are all compiled in Turbo C 2.0
+    small mode, that is 64k code segment and 64k data/stack segment.
+
+  o Add a new command '
+    Example: 'A     leave 41h in stack
+             'a     leave 61h in stack
+             'BcDe  leave 42h 63h 44h 65h in stack
+
+  __________________________________________________________________________________________________________
+  Chern's F language interpreter R37                                 1996.???
+
+  o fix a bug, $8080 $100 / = $FF81; Because of / command treated operands
+    as signed integer but they should be unsigned.
+
+  o Macro cache buffer size F36 was 50, too small, now extend to 100.
+
+
+  __________________________________________________________________________________________________________
+  Chern's F language interpreter R38                                 1996.10.26
+
+  o New words cl_next! [n--] where n >= 2, Command line next word
+  o New words for PnP BIOS real mode function call
+
+    -------------------------------------------------------------------
+    InstallationCheck    [-- $PnP_offset checksum] checksum==0 OK
+                         check PnP BIOS and build up vectors
+    -------------------------------------------------------------------
+    &PnPdataBuffer       [ -- Seg off]
+                         get F38 internal PnPdataBuffer address
+    -------------------------------------------------------------------
+    PnP0                 [-- NodeSize NumNode Err]
+                         Get Number of System Device Nodes
+    -------------------------------------------------------------------
+    PnP1                 [ Node Control -- Node+ err]
+                         Get System Device Node
+    -------------------------------------------------------------------
+    PnP2                 [ Node Control -- ]
+                         Set System Device Node
+    -------------------------------------------------------------------
+    PnP3                 [ -- message err ]
+                         Get Event
+    -------------------------------------------------------------------
+    PnP4                 [ message -- err ]
+                         Send Message
+    -------------------------------------------------------------------
+    PnP5                 [ -- err ]
+                         Get Docking Station Information
+    -------------------------------------------------------------------
+
+  __________________________________________________________________________________________________________
+  Chern's F language interpreter R39                                 1996.11.3
+
+  o F38 pnp2 should return errcode [Node Control -- *ERR*]
+  o InstallationCheck modified, now return nothing but exit program if PnP BIOS not existing.
+  o word PICK and ROLL source code moved to a proper position.
+  o Add new word MALLOC [size--address] allocate a near memory block
+  o Add new word GetRegs [--] This command will do followings,
+       ##iAX = _SP;
+       ##CS  = _CS;
+       ##DS  = _DS;
+       ##ES  = _ES;
+       ##SS  = _SS;
+  o remove &PnPdataBuffer and replaced by Buffer and Buffer!\
+    buffer [--addr] Get buffer's address. Buffer is in current data segment.
+    byffer! [addr--] Set buffer's address.
+    usage:  01234 malloc buffer!  // get a 1234 byte long buffer
+  o new word &PnPheader [--PnPheader_offset] Note: segment is fixed as 0xF000
+  o new word &tos [... a b -- ... a b &b] where &a = &tos - 2
+  o remove PnP0..PnP5 and replaced by PnPreal [a b c d e f g h -- err]
+
+  __________________________________________________________________________________________________________
+  Chern's F language interpreter R40 F40                            1996.11.7
+
+  o new command breakon and breakoff
+  o Buffer! may overwrite an existing buffer and so make it floated.
+    This kind of problem is absolutly not acceptable. So, Buffer! modified
+    now. If Buffer != NULL then it's a fatal error and program will be
+    terminated immediately.
+  o command line script file can be 'nul' now indicates no script file.
+  o Assembly language interface new commands
+    loadfo   [buffer length -- err] load an assembly language file to buffer
+    farcall  [... seg off -- ...]   farcall assembly language argument=&TOS
+
+  o command 'putenv' revised
+    The old usage only     :  putenv <ENV NAME>=<STRING>
+    now, new usage can be  :  putenv <ENV NAME>=.
+                              putenv <ENV NAME>=.$
+    For example  : 0123 putenv XXX=.
+    is equals to : putenv XXX=0123
+    And also     : 0123 putenv XXX=.$
+    is equals to : putenv XXX=7B
+
+  o new command .! and .$!  [data addr--addr]
+    write the data as a 6 char length decimal or hex string to the address.
+    this is for improving the ability of 'call' command
+
+    Ready: dropall 01 02 03 04 05 06 07 08 &tos .s
+    [1F00h]  <== &TOS
+    [   8h]  <== TOS at 1F00h
+    [   7h]  <== TOS-2
+    [   6h]
+    [   5h]
+    [   4h]
+    [   3h]
+    [   2h]  <== TOS-12
+    [   1h]
+
+    Ready: 012 - .! .s    // .! puts "     8 " to the specified address 1EF4h
+    [1EF4h]
+    [   7h]
+    [   6h]
+    [  20h]
+    [3820h]
+    [2020h]
+    [2020h] <== 1EF4h
+    [   1h]
+
+  Examples :
+
+    ============= cl.c show command line ==========================
+    main(int argc, char ** argv)
+    {  int i;
+       for (i=0; i<argc; i++) puts(argv[i]);
+    }
+
+    ============= try .! and .$! command ===================
+    _c_ #show_command_line call cl XXXXXX XXXXXX XXXXXX this is a test
+    ;                   // call cl   ABCD -11111   1234
+    #test
+       01234 0 011111 - $ABCD sfind _c_ 028 + .$! 07  + .! 07  + .!  // F47 ¤§«á­nª`·N sfind ¶Ç¦^­È¦h¥[¤@
+       ##show_command_line
+    ;
+    ============= try new putenv command ===================
+    This example prints 1..100
+    The benefit of using env. variable is clear. It's easy to watch
+    and modify. But there'are two problems ....
+
+    #test2
+       01 putenv XX=. do %XX dup . ."  " 01 + dup putenv XX=. 0100
+       > ?break loop
+    ;
+
+    The problem is that putenv will always allocate a new memory block.
+    The above example allocates 100 blocks! Also, putenv creates a new
+    env variable but no guarantee. Thus a better way is to recycle
+    the existing environment variable, and check the environment space.
+    Because .! writes 6 bytes to the target address, the first creation
+    preserve 7 spaces (6 + '\0') for it.
+
+    #test3
+       putenv XX=0000001 %XX 01 != if ." Not enough env space ! " cr exit endif
+       do %XX dup . ."  " 01 + dup getenv XX .! drop 0100
+       > ?break loop
+    ;
+
+  __________________________________________________________________________________________________________
+  Chern's F language interpreter R41  F41                            1998.4.26
+
+  o Add %$ Get environment variable in hexdecimal.
+  o Known bugs are:
+    - do loop, strange sometimes.
+    - ." ", if the . missing or the first space missing, will be very strange.
+    - Pklite comppressed, %$ command will generate null pointer assignment
+
+  __________________________________________________________________________________________________________
+  Chern's F language interpreter R42  F42                            1998/6/30
+
+  o PnP installationcheck command was wrong, the PnP structure
+    checksum should be a 8 bit variable not 16 bits! This bug
+    will have the program failed to find the $PnP header or find
+    a wrong one. Thanks to Randy Chen who found and correct this
+    problem.
+
+  ###
+  __________________________________________________________________________________________________________
+  Chern's F language interpreter R43 F43      (added new commands by Henry Leu)
+  o Add some new commands:
+       oo :  the command composed of disable_irq,outport,outport,enable_irq
+           if you want to outportb($72,$55),then outportb($73,$aa)
+
+           [addr data addr data -- ]
+           example : $72 $55 $73 $aa oo
+
+     oi :  the command composed of disable_irq,outport,inport,enable_irq
+           if you want to outportb($72,$55),then inportb($73)
+
+           [addr data addr -- data]
+           example : $72 $55 $73 oi
+
+     aliSmb_rb:if you need to deliver command to read smb_bus, top of stack means OK or NG
+                  next stack entry means data of the read Register
+
+                          [device register -- data y/n](top of stack means OK or NG)
+                 example :   $ae    $00    alismb_rb
+                 return :[0]----OK([1]----NG)
+                         [55]---data of the readed Register
+
+
+     aliSmb_wb:if you need to deliver command to write smb_bus,top of stack means OK or NG
+                  the command composed of  write & read & check if output of read
+                  is same as you want to write.
+
+                          [device register data-- y/n]
+                 example :   $ae     $00    $88      alismb_wb
+                 return : [0]----OK([1]----NG)
+
+     similar functions like : banSmb_rb , banSmb_wb , px4Smb_rb , px4Smb_wb
+
+  _______________________________________________________________________________________
+  F45 ~ F51 interpreter                                  H.C. Chen  2008.7.5
+
+  F45 RN01
+
+    Abstract : Bug before F45, "do ... if ?break else ?break endif
+               loop" incorrect behavior.
+
+    Below command line stick in the inner loop, F44 has bug.
+    f44 forth.txt ##do-loop-test
+
+    Below command line works fine, F45 has fixed the bug. Run by F45
+    can go inner and outter, innter and outter .... correctly.
+    f45 forth.txt ##do-loop-test
+
+    #do-loop-test
+      do ." outter loop " cr
+        do ." inner loop " cr 01 00 if ?break else ?break endif loop
+      loop
+    ;
+
+  F45 RN02
+
+    Abstract : Bug before F45, "do do ... ?break loop loop" incorrect
+               behavior
+
+    Below command line makes a lot of 'Pop empty stack!' error. Too many
+    beeps makes my TM250 and even LT71 audio sound irregularly. F45
+    fixed the do ... loop bug and also remove the beep sound from stack
+    error warning messages to avoid the audio problem on modern
+    computers.
+
+    f44 forth.txt ##matrix_do_loop_test
+    f45 forth.txt ##matrix_do_loop_test
+
+    #matrix_do_loop_test
+       03 00 do over over == ?break 01 +  // LOOP DO LOOP <== see if this bothers
+           03 00 do over over == ?break 01 +  // LOOP DO LOOP <== see if this bothers
+               010 01 do dup . ."  " over over == ?break 01 +
+               loop drop drop
+               03 00 do
+                  ." DO LOOP DO "  // see if this makes problem ? LOOP DO
+               over over == ?break 01 + continue loop drop drop cr
+           loop drop drop cr
+       loop drop drop
+    ;
+
+  F45 RN03
+
+    Abstract : Example for repeat command (F45 new)  [ arg# - ]
+
+    'repeat' is easier for understanding than 'cl_next!' (since F38) tho' the
+    command is not only for repeating (more like a jump). This command needs the
+    number of word in the command line to jump to. If stack is empty then jump
+    to the first word in the command line.
+
+    F45 forth.txt ##oh-my-god repeat
+    F45 forth.txt ##oh-my-god ##Dog ##oh-my-god 03 repeat
+    F45 nul $70 $0 $71 0 oo $70 0 $71 oi . cr 06 repeat  // ¤@¦æµ{¦¡¡Athis example shows RTC clock time from 00
+    f47 nul $4A8A 08 + dup .$ cr dup $5000 GT ?exit 02 repeat  // ¤@¦æµ{¦¡¡A§Q¥Î repeat ºâ¥X $4A8A ~ $5000 ¤§¶¡ 8 bytes ¤@¸õªº hex ­È¡C  Bug: ?ret µL®Ä here !!
+    f47 nul $0 $0 $46c fpeekd swap .$ .$ cr repeat  // ¤@¦æµ{¦¡¡A¤£Â_¦L¥X DOS time tick ¤§²{­È¡C
+
+  F45 RN04
+
+    Abstract : New command 'continue'. Used in do ... loop, like C.
+
+  F45 RN05
+
+    Abstract : Bug before F45, Latest ';' right before eof has a bug
+
+    Move below macro to right before EOF and run it by F44, result
+    is : hello bug !!;"? Unknown. <=== Problem
+    Append a space at the end of script buffer has fixed this problem.
+
+    F44 forth.txt ##hello
+    #hello
+      ." hello bug !!"
+    ;
+
+
+  F45 RN06
+
+    Abstract : ." ", if the . missing or the first space missing,
+               will be strange.
+
+    User's mistake too, so I decided not to change anything for this.
+
+    F44 forth.txt ##bug
+    F40 forth.txt ##bug
+
+    #bug
+       ." first line
+        hello bug " cr
+       ."hello bug " cr
+    ;
+
+
+  F45 RN07
+
+    Abstract : R41 said that %$name environemt variable command makes
+               null pointer assignment.
+
+    No problem, forget it.
+
+    F44 forth.txt ##%$test
+
+    #%$test
+        %PROCESSOR_REVISION .s . cr dropall
+        %$PROCESSOR_REVISION .s . cr
+    ;
+
+  F45 RN08
+
+    Abstract : Example for SFIND command (since F36)
+
+    SFIND is a funny command, I wrote it for joking. But it turned out to be
+    a good idea after all. SFIND finds the given string's ending address in
+    the script buffer. With ' command, we can dynamically change a macro.
+    Note! the string to be found must not be in ." " or //. Why? just
+    because of the method I wrote the program.
+
+    SFIND is not danger at all, it's actually very easy to debug. For example
+    1. Run F45 forth.txt <enter> to enter debug mode.
+    2. S command to see the script buffer dump and get where it is. _DS_ == data segment
+    3. sfind the _mark_ .s <=== find _mark_ and get the address _OFFSET_
+    4. call debug  <=== utilize debug.exe
+    5. d _DS_:_OFFSET_  where _DS_ and _OFFSET_ were from above steps.
+    6. This way, we can see everyting and debug easily.
+    above 4~6 can also be replaced by Soft-ICE. Watch variables directly by Soft-ICE is
+    a good idea too.
+
+    F45 forth.txt ##oh-my-god ##dog ##oh-my-god
+
+    #Oh-my-god
+        ." oh my God " cr ; .Mark. <== this mark is the reference position
+    #dog
+        sfind .Mark. 017 - dup 'D poke 02 + 'g poke
+        // sometimes, this is a good way to change the behavior of a macro
+    ;
+
+    F Language does not have variables. Via SFIND we can recover that when we need variables
+    or even some memory blocks very easily. Note! Since F47, SFIND command return address is one
+    byte more than older F interpreters.
+
+
+       _old_CS_ xx #&old_CS sfind _old_CS_ ; // This macro returns the address of the space between
+                                             // the first _old_CS_ and xx. (F46 and older, F47 returns the first 'x's address)
+
+       ##&old_CS 01234 pokew   // writing 01234 to the given address (the space between the first
+                                                   // _old_CS_ and xx), the space and the first x will be over written.
+
+       ##&old_CS peekw         // reading a value from the given address.
+
+    Got it? By this way we have variables and even memory blocks when we need them. Don't worry
+    about the speed, sfind saves the target string's address into mcache so it does the linear search
+    through out the script buffer only at the first time (F474).
+
+  F45 RN09
+
+    Abstract : Bug before F45, stack over flow or pop empty stack with
+               PC beep can put Windows into a trouble
+
+    Simply run below macro can reproduce the problem. Windows will sound
+    irregularly. I guess because Windows replaces PC beep to a sound
+    effect but that sound effect can't handle so many PC beeps queued
+    in. That's the problem. This is not a F Language bug, but F45
+    removed the beep from 'stack over flow' and 'Pop empty stack'
+    warning messages to reduce this problem from unexpected cases.
+
+    F45 forth.txt ##beep repeat
+
+    #beep
+          ." beep  "
+    ;
+
+  F45 RN10
+
+    Abstract : F45 drops all PnP related commands.
+
+    PnP has obsoleted.
+
+  F45 RN11
+
+    Abstract : MALLOC command that allocates memory from near data segment
+
+    F Language uses Turbo C small mode. That means we use only a 64k data
+    segment. Called near data segment. F stack, script buffer are all in the
+    same data segment. MALLOC allocates memory from the same data segment too.
+
+  F45 RN12
+
+    Abstract : Improve OO and OI command
+
+    They should be interrupt free. Improved since F45. For example, below bits
+    is the basic correct way to access CMOS
+
+         pushf
+         cli
+         out 70h,index
+         in  al,71h
+         popf
+
+  F47x RN13
+
+    Abstract : New commands for Alexei A. Frounze's Tutorials
+              (http://docs.google.com/View?docID=dgzzwq68_34c7wzdjck&revision=_latest)
+
+  F473 RN14
+
+    Abstract : ' command F473 supports 'space.
+               'abc pushes 'a' 'b' 'c' but 'space couldn't push a space it actually pushes
+               nothing. This makes a bug easily. Now F473 supports '  ('space).
+
+  F474 RN15
+
+    Abstract : SFIND command saves the target string's next address into mcache table.
+
+    SFIND command can be used for variables. Linear search is not suitable that I improved its
+    performance this way.
+
+
+  F474 RN16
+
+    Abstract : 32 bits dword data/address ²Î¤@ºD¨Ò¬° [ high low -- high low] §_«h«Ü¶Ã¡C
+
+  _______________________________________________________________________________________
+  F52 interpreter                                             H.C. Chen  2009/02/17 13:14
+
+  F51 §â *s ´À´«¦¨ type¡A µ²ªG¤£¤p¤ß *s ´N¨S¤F¡C Lawrence Tang told me that Liwei Chang/TE
+  has been using *s, so now I put it back.
+
+  *S 's behavior equals to 'type' and then an extra CR ;
+
+  _______________________________________________________________________________________
+  F53 interpreter ¡]§@¼o¡^                                          H.C. Chen  2009/02/26
+
+  §ï¨} assembly, ·Q­nÁ×§K F52 ¹ï ##assembler ªº»Ý­n¡]´Á±æ¯à¦b¥Î¨ì®É¤~Á{®É assemble)¡A¦Ó¥B
+  macro »P assembly code ­n¦b #macro ªº©w¸q¸Ì­±¤@¤f®ð§¹¦¨¡C³o´N¬O«á¨Óªº ##inline_assembler¡C
+
+  §Ú¬°¤F°µ¥X ##inline_assembler ¦b F53 ¸Ì¹Á¸Õ¹L«Ü¦h¿ù»~¡C¨ä¤@¬O where_expand ¡A¨ä¤G¬O sbuf¡C
+  ³o¨â­Ó³Ã¥ë³£¦³°ÝÃD¡A©¯¦n³Ì«áµo²{­n°µ¥X ##inline_assembler ®Ú¥»¥Î¤£µÛ¥¦­Ì¡A¦]¦¹ f53 §@¼o¤F¡C
+
+  where_expand ªº°ÝÃD¬O¡A¥¦¥²¶·¥Î¦b macro ¸Ì§Oªº ##macro expansion ¤§«e¡A§_«h·|¶Ç¦^³o¨Ç
+  unexpected macro expansion ªº¦ì§}¡C
+
+  §Q¥Îµw¶ñ sbuf.p ªº¤è¦¡¨Ó goto ¨ì§Oªº macro ¸Ì­±¡A¨ì³Ì«á·|¦³ side effect¡A¦]¬° forth() ªº
+  ¤U¥b¬q¦^ªðµ{§ÇµLªk¥¿±` balance, ¬G¤£¹ê¥Î¡C 
+  
+  ³o¨Ç¿ù»~ªº³]­p¯d¦b F53 ¸Ì¡A¥H«á¤S·Q¹Á¸ÕÃþ¦üªº³]­p®É¡A¥i¥H¨Ó°Ñ¦Ò¬Ý¬Ý¡C
+
+  «á¨Ó§¹¦¨ ##inline_assembly ¶W¯ÅÂ²³æªº³]­p¦p¤U¡A¥Î f51, f52 ´N¥i¥H°µ¨ì¤F¡]f53 §@¼o¡^Refer to pmtools.f10
+
+  #int3 //  [ -- ]  ¨Ï¥Î ##inline_assembly ¼g¤@­Ó int3 ½d¨Òµ{¦¡
+    s" xx "                  \ <-------- ¤U­±ªº assembly code ·|¥Î¨ì¨â­Ó bytes¡A³o¸Ì´N©ñ¨â­Ó x¡C s" ¶Ç¦^²Ä¤@­Ó x ªº¦ì§}
+    ##inline_assembly if     \ <--------------.
+        $cc b, // int 3                       | «e«á¨â¦æ¤½¦¡¡A½Ð·Ó§Û¡C
+        $cb b, // retf                        | ¤¤¶¡©ñ assembly code, ³Ì«á¥Î retf ¦^ªð¡C
+    endif                    \ <--------------'
+    farcall ;  // ¦pªG§â farcall ©ñ¶i else ¸Ì¡A´NÅÜ¦¨²Ä¤@¦¸³æ assemble ¤£°õ¦æ¡C ¦p¦¹¥i¥H§Q¥Î ##autoexec ¨Æ¥ý assemble¡C
+
+  // ##inline_assembly ¥H ##xDS:offset ³]©w b, ÀË¬d offset ²Ä¤@­Ó bytes, ­Y¨ä­È¬° "x" ªí¥Ü³o¬O²Ä¤@¦¸ macro expansion.
+  #inline_assembly  // [ offset -- ##xDS entry first_time? ]
+           ##xDS swap        \ ##xDS offset
+           over over         \ ##xDS offset ##xDS offset
+           ##b,setup         \ ##xDS offset
+           dup               \ ##xDS offset offset
+           peek 'x           \ ##xDS offset x "x"
+           == ;              \ ##xDS offset (is this the first_time?)
+
+  µ±ºÉ¸£¥Ä¼g F53 ®É¦³¤@­Ó¤£¤U©ó sfind ªº¤jµo²{¡As" stuvwxyz " ¶Ç¦^¦r¦êªº¶}ÀY¦ì§}¡]«ü¦V 's'¡^¡A­ì
+  ¥»¬O¬°¤F printf ¤Þ¶iªº¡C§Úµo²{¥¦¤]¥i¥H¶i¤@¨BÅÜ¦¨ F Language ªºÅÜ¼Æ¡B¦r¦ê¡B¸ê®Æµ²ºc°ò¥»¤u¨ã¡C
+  ¨Ò¦p¡G #var s" xx " ; §â ##var ©w¸q¦¨ xx ªº¦ì§}¡C ¦]¦¹¡AÅª¼g ##var ³o­Ó variable ªº¤èªk«ÜÂ²³æ,
+
+    ##var 01234 pokew <== ¼g 1234 ¶i ##var
+    ##var peekw       <== Åª¨ú ##var
+
+  ·í»P ##inline_assembly °t¦X®É¡As" ´NÅÜ¦¨¦w¥þ¨ú±o assembly code ªÅ¶¡ªº§¹¬ü¤â¬q¡C
+  
+  _______________________________________________________________________________________
+  F54 interpreter                                             hcchen5600 2009/03/02 10:27
+
+  F54 RN00
+
+    µo²{ ##inline_assembly ¤§«á¡A§ÚÄ±±o³o¬O¥¿¸Ñ¤F¡C¬°¤F¾¨¦­Â\²æ F51 ¹ï assembly ªºÀ|¸Õ©Ò¯d¤Uªº¦h
+    ¾l³]­p¡AF54 ¤@¤f®ð§â nearcall assembly ¾ã¤ù³£´­±ó±¼¤F¡C µ²ªG¬O¡A¥ý«e¥Î¨ì F51 F52 ªº 'code_buffer'
+    ªº assembly code words ³£­n§ï¼g¡C¬Ý¨ì 'code_buffer ? unknown' ®É´N¬O³oºØ±¡§Î¡C§Ú²q¡A¥D­n¬O 
+    ##xDS ³o­Ó word¡H ¤@¯ë¦Ó¨¥¡A§Û pmtools.f10 ¸Ìªº¦P¦W ##macro ¹L¥h¥Î´N¹ï¤F¡C
+
+  F54 RN01
+  
+    Pop Empty Stack , Push Full Stack ³o¨â­Ó fatal error ªº³B¸m¤è¦¡§ï¨}¤F¡C­ì¥»¥u show Error 
+    message ¦Ó¤w¡Aµ{¦¡·Ó¶]¡A·PÄ±¦³ÂI¦MÀI¡CF54 ¥[±j¡A·í command line free run ®É¡Aµ{¦¡·|°±¤U¨Ó¡C
+    ·í debug mode ®É¡Aµ{¦¡·|©ñ±ó°õ¦æ¤¤ªº macros ¦^¨ì command prompt¡C­n°µ¨ì³oÂI¡A¦³ÂI¶O¨Æ¡AÃø©Ç
+    ¤§«e¤@ª½¨S¦³°Ê¤â¡C§Ú¦b stack ªº©w¸q¸Ì¡AÂX¥R¤F¤@­Ó error flag ¤~²×©ó¹F¨ì¥Øªº¡A
+    
+        struct forthstack {
+            int tos;              /* top of stack */
+            int data[STACKSIZE];
+            int error;            /* F54 improve error handling */
+        } stack, auxstack;
+    
+    ³o¹ï data stack »P auxiliary stack ¦P¼Ë¾A¥Î¡A¬G³£¥[±j¤F¡C
+    
+  F54 RN02
+  
+    «Ü¦h error message ³£¥[±j¤F¡A²{¦b·|«ü¥X·í®É script buffer ¸Ì¥X°ÝÃD¤§«e³Ì«á«ü¨ìªº word ¦ì§}
+    ¡¯¤§«á¡¯¡A¥HÀ°§U debug¡C³o­Ó­È¶È¨Ñ°Ñ¦Ò¡A¤£¤@©w«ü¦V¥¿½Tªº¥X¿ù¦aÂI¡C
+
+  F54 RN03
+  
+    sfind target_string ³o­Ó¦n¥ÎªºªF¦è¦³­Ó¤p°ÝÃD¡A­Y¦b¥¦¤§«e¨S¦³ target_string ¨º»ò¥¦´N·|§ä¨ì¦Û
+    ¤v¡C³oµL½×¦p¦ó³£¨S¦³·N¸q¡A¸U¤@µo¥Í¤F¤]¤£¦n debug¡Cf54 ¤§«á¡Aµh¤U¨M¤ß­×§ï³W©w¡G­ì¥» sfind 
+    target_string ¤§³B¡A­n§ï¼g¦¨
+    
+        sfind @target_string  <=== ³o¸Ì¦h¥X¤@­Ó @ ¡A¯u¥¿ªº target_string ¨S¦³³o­Ó¦h¥X¨Óªº @
+                                   ¦]¦¹¦³¤F°Ï§O¡A¤£·|·d²V¡C¬G target_string ¥X²{¦b­þ³£¥i¥H¡C
+    
+    ¨ä¤¤ @ ¬O­Ó¥ô·Nªº dummy character¡C target_string ¥»¨­°£¤F white space ¥H¥~³£¥i¥H¥Î¡C¦p¦¹¤@
+    ¨Ó¡A­ì¥»³W©w target_string ¥²¶·¥X²{¦b sfind ¤§«e¡A²{¦b¤£¥²¤F¡Csfind ¤´µM·|§ä¨ì script buffer 
+    ¸Ì²Ä¤@­Ó target_string ¨Ã¶Ç¦^¥¦ªº¦a§}¡C
+    
+  F54 RN04
+  
+    reload ¬O­Ó«Ü¦Ñªº command¡CDebug ®É¡A§ï¹L script file ¤§«á¡A¤£¤è«K­«¶]¾ã­Óµ{¦¡®É¡A¥Î reload 
+    §Y¥i¡C¥ý«e¨S¦³§âÂÂ script buffer ¥ý free ±¼¡A¦]¦¹ data segment ·|Ãz±¼¡C³o­Ó°ÝÃD F54 ­×¦n¤F¡C
+    ·í§A¥H debug ±Ò°Ê F54 ®É¡A¥i¯à´N·|·Q­n¥Î¨ì³o­Ó¥\¯à,
+    
+    ½d¨Ò¡G
+    
+    1. debug f54.exe pmtools.f10    <== ¥Î debug ¨Ó±Ò°Ê F54
+    2. -g
+       Ready: int3     <== ÀH®É¥i¥H³z¹L f54 ¸Ìªº int3 «ü¥O¸õ¤Á¶i debug
+       AX=0000  BX=0004  CX=0B2B  DX=93B0  SP=FF5C  BP=FF70  SI=FF82  DI=0002
+       DS=1F89  ES=1F89  SS=1F89  CS=1819  IP=2EEF   NV UP EI PL ZR NA PE NC
+       1819:2EEF CC            INT     3
+       -g=2ef0         <== ²¤¹L int3 ¤S¥i¥H¦^¨ì F interpreter
+       Ready:
+    
+    F language ªº int3 «ü¥O¥i¥H®I¶i ##macro ¸Ì¡A¼g Protected Mode µ{¦¡®É debug ­n¾a¥¦. ¼g assembly 
+    code ##words ®É¥i¥Hª½±µ¦b assembly code ¸Ì®I¤U cc instruction code ³]¦¨Â_ÂI¡C³o¨Ç³õ¦X³£·|¥Î 
+    debugger ¨Ó±Ò°Ê F Language¡A§A¤]³\·|·Q­n¥Î reload ©R¥O¨Ó­«§ì script file¡Cª`·N¡I F54 ²Ä¤@¦¸ 
+    reload ¤§«á¡Ascript buffer ªº¦ì§}·| shift ¨ì¤ñ­ì¥ýªº©¹«e¤§³B¡A­ì¦]¤£¸Ô¡CÁ`¤§¡A§O¥H¬°¥¦ÁÙ¬O­ì§}¡C
+    
+    
+  F54 RN05
+  
+    pushfd ³o­Ó»P CPU instruction ¦P¦Wªº·s©R¥O¶Ç¦^ 32bits CPU flags, ¥Î¨Ó§PÂ_¬O§_ V86 mode ­n¥Î¨ì¥¦¡C
+
+    PUSHFD [ - high low  ] get 32 bits CPU flags, necessary for V86 mode check (since F54)
+
+    demo µ{¦¡ pmtools.f10 ¸Ì¡Aªu¥Î¤F¤Q´X¦~ªº CPU registers ©w¸q°Ï (##iAX! ##oAX ... etc) ¬°¤F support 
+    assembly ÂX¥R¤F¤@­Ó ##xDS ¥Î¨Ó¶Ç¦^ DS ¤§­È¡C¥¦¦Û°Ê§PÂ_·í®É­Y¬° real mode ¥H¤Î V86 mode ´N¶Ç¦^¤@¯ë
+    ªº ##DS, ­Y¬° protected mode ´N¶Ç¦^ 40h¡C³o­Ó 40h ¬O§Ú¥ô·N³]©wªº¡A¥¦¬O­Ó»P real mode data segment
+    ­«Å|ªº executable GDT entry (executable DS)¡C¥²¶·¦p¦¹§Ú­Ì©ñ¦b script buffer ¸Ìªº assembly code 
+    words ¤~¥i¥H¦b protected mode ¸Ì°õ¦æ¡C¤£­nÃhºÃ¡I°£«D§A¬G·N¹x¥Ö¡A§_«h assembly code words ¦b real 
+    mode, V86 mode, ¥H¤Î protected mode ³£¥i¥H°õ¦æ¦Ó¥B¾A¥Î¦P¼Ëªº stack diagram !!
+    
+  F54 RN06
+  
+    getregs ¥H«e­n¤U¹L¤F³o­Ó«ü¥O¤~·|¦³¥¿½Tªº ##CS ##DS ##SS ##ES segment ­È¡AF54 ¤@¶}©l´N¦Û°Ê°õ¦æ¤@¦¸
+    ¡A¬G°¨¤W¥i¥H¥Î¡C
+    
+  F54 RN07
+  
+    F51 ¤Þ¶i ##autoexec ¦Û°Ê°õ¦æ¥\¯à¡C·í .f ÀÉ¸Ì¨S¦³ ##autoexec ®É©Òµo¥Xªº ##autoexec not found Äµ§i¦³
+    ®É«Ü°Q¹½¡C F54 §ï¨}¤F¡A·í¨S¦³ ##autoexec ®É¤£°µ´Nºâ¤F¡A¤£µoÄµ§i¡C¦Ó¥B°õ¦æ ##autoexec ®É¡A¤]¥[±j¤F
+    error check¡AF53 ¤§«e¨S¤°»òÀË¬d¡A¥X¿ù¤FÁÙ·Ó¼Ë©¹¤U°õ¦æ¡C 
+    
+    ¥H¤W§ï¨}¬Ý¦üÂ²³æ¡AF54 ¤º³¡¬O¥H¤@­Ó¬ß±æ¤w¤[ªº·s function eval(" words ...") ¨Ó¹ê²{ªº¡C
+    
+        eval(" defined @#autoexec if ##autoexec endif "); 
+        
+    ¥H¤WÅã¥Ü F54 ¦p¦ó§Q¥Î eval() ¥ýÀË¬d #autoexec ¬O§_¦³©w¸q¡A¦³¤~°õ¦æ¡Ceval() ¬O­Ó±q C ¸Ì­± call ¥Î
+    F language ªº³~®|¡Ceval() ¤]³\¸ÓºÙ§@ interpreter() §ó¶K¤Á¡H ¦UºØ Forth »y¨¥ª©¥»³£¦³Ãþ¦üªºªF¦è¡A¥Î
+    ¨Ó°õ¦æµ{¦¡¸Ìµ¹©wªº¤@¦æ Forth «ü¥O¡C
+
+  F54 RN08
+
+    ªþ¦b F54.zip ¥]¸Ìªº pmtools.f10 ¦³«Ü¦h¦³½ìªº½d¨Ò¡B¤u¨ã¡AÂ²¤¶¦p¤U¡G ¡]f5x pmtools.fxx ¤Ï¥¿·sª©¦YÂÂ
+    ª©¡A§Ú´N¤£¤@¤@­×§ï¤F¡^
+    
+      F51 pmtools.f04 ##big_real_mode      // ¦b pure DOS ¤U¡A§â¾÷¾¹¤Á¦¨ Big real mode¡C
+      
+      F52 pmtools.f06 $12 $3456 ##xDD      // dump 256 bytes from memory 0x123456 <= 4G memory ªÅ¶¡¡I
+      
+      ¥H¤U¡A§Ú¥u¤¶²Ð ##macro ¦WºÙ¡A¤£¦A¤@¤@Á|¨Ò¡C¨Ï¥Î³o¨Ç ##macro ªº stack diagram ½Ðª½±µ¬d¾\ pmtool.f10 ¡C
+
+      ##inline_assembly  §ï¨} F51 F52 ·Ðº¾ªº assembly ¼gªk¡AºëÂ²¡Bº}«G¡B©öÀ´¡C
+      ##BigRealMOVSB  // ¦b 4G memory ªÅ¶¡¤º¥H  byte ¬°³æ¦ì¡A¤@¤f®ð·h°Ê¶W¹L 64k ¤j¤pªº°Ï¶ô¡C
+      ##BigRealMOVSD  // ¦b 4G memory ªÅ¶¡¤º¥H dword ¬°³æ¦ì¡A¤@¤f®ð·h°Ê¶W¹L 64k ¤j¤pªº°Ï¶ô¡C
+      ##printf        // C »y¨¥ªº printf ! ¤£­nÃhºÃ¡C
+      ##scasd         // CPU instruction ¦P¦W macro, ¦b«ü©wªº 64k ªÅ¶¡¸ÌÀþ¶¡§ä¨ì¥X²{«ü©wªº dword ¤§­È³B¡C
+      ##PMode         // ¤Á protected mode, ¤@¯ëªº ##macro ¥u­n¤£Ä²°Ê¨ì interrupt ³£¥i¥H¦b PMode °õ¦æ¡I 
+      ##RMode         // ¤Á real mode 
+
+      ##d
+      ##dd            // ¦b real mode ªÅ¶¡¹³ debug ªº d ©R¥O¤@¼Ë dump memory
+      ##ddd           // d ¶V¦h show ¶V¦h¡C
+      ##dddd
+      ##ddddd
+      
+
+  F54 command set
+  _____________________________________________________________________________________________________
+   Command set  Stack Diag      Description
+  _____________________________________________________________________________________________________
+*  #AUTOEXEC   [ -           ] auto executed if defined in script file
+   0           [ - decimal   ] Decimal    e.g. 01 0123 0456
+   $           [ - hex       ] Hexdecimal e.g. $11 $23
+   &           [a b - and    ] bit-wise logical AND
+   ^           [a b - xor    ] bit-wise Logical XOR
+   |           [a b - or     ] bit-wise Logical OR
+   BR          [a b - a|b    ] alias of |
+   ~           [a - ~a       ] bit-wise Logical NOT
+   <<          [n - n<<1     ] Bit-wise shift left
+   SL          [a n - a<<n   ] alias of <<
+   >>          [n - n>>1     ] Bit-wise shift right
+   SR          [a n - a>>n   ] alias of >>
+   AND         [a b - AND    ] logical and
+   OR          [a b - OR     ] logical OR
+   NOT         [a - NOT      ] logical NOT
+   XOR         [a b - a^b    ] logical XOR
+   +           [a b - sum    ] Mathematical operation
+   -           [a b - sub    ] Mathematical operation
+   *           [a b - mul    ] Mathematical operation
+   /           [a b - div    ] Mathematical operation
+*  L+          [ah al bh bl - a+b_h a+b_low]  32 bits mathematical operation
+*  L-          [ah al bh bl - a-b_h a-b_low]  32 bits mathematical operation
+*  L*          [ah al b - a*b(h) a*b(L)]  32 bits mathematical operation. Note B is 16 bits
+*  L/          [ah al b - a/b(h) a/b(L)]  32 bits mathematical operation. Note B is 16 bits
+   <           [a b - a<b    ] Less then compare
+   LT          [a b - a<b    ] alias of <
+   >           [a b - a>b    ] Bigger then compare
+   GT          [a b - a>b    ] alias of >
+   <=          [a b - a<=b   ] Less then or equal compare
+   LE          [a b - a<=b   ] alias of <=
+   ==          [a b - a==b   ] Equal compare
+   !=          [a b - a!=b   ] true if not equal
+   >=          [a b - a>=b   ] Bigger or equal compare
+   GE          [a b - a>=b   ] alias of >=
+*  .S          [ -           ] Show stack (alias of STACK command). F51 improved.
+*  STACK       [ -           ] .s alias
+   &TOS        [a b - a b &b ] where &a = &tos - 2
+   TOS         [ - n         ] Number of data on the Forth stack
+   DUP         [n - n n      ] Duplicate top of stack
+   SWAP        [a b - b a    ] Swap two entries on top of stack
+   OVER        [a b - a b a  ] stack operation
+*  2DUP        [a b - a b a b] 32bits Duplicate top of stack
+*  2SWAP       [a b c d - c d a b] Swap two 32bits entries on top of stack
+*  2OVER       [a b c d - a b c d a b] 'over' 32bits version
+   OVER2       [a b c - a b c a] stack operation
+*  ROT         [a b c - b c a] Rotate TOS 3 entries
+*  -ROT        [a b c - c a b] Rotate TOS 3 entries reversed
+   ROLL        [... n - ...  ] roll the TOS down to n'th stack, TOS is #0
+   PICK        [... n - ...  ] pick the n'th stack to TOS, TOS is #0
+   DROP        [n -          ] Delete top of stack
+   DROPALL     [... -        ] Clear stack
+*  >A          [n -  ] [ - n ] Push TOS to auxTOS , new since F51.
+*  A>          [ - n ] [n -  ] Pop auxTOS to TOS, new since F51
+*  A@          [ - n ] [n - n] copy auxTOS to TOS, new since F51
+  _____________________________________________________________________________________________________
+   I           [port - c     ] input a byte from the port address
+   O           [port c -     ] output a byte to the port address
+   IW          [port - w     ] input a word from the port address
+   OW          [port w -     ] output a word to the port address
+*  ID          [idx - high low ] 32 bits I/O input
+*  OD          [idx high low - ] 32 bits I/O output
+
+               // Demo id od 32bits i/o commands
+               //     $CF8
+               //     31       1        1 bit
+               //     30~24    0000000  7 bits reserved
+               //     23~16    bbbbbbbb 8 bits Bus number
+               //     15~11    ddddd    5 bits Device number
+               //     10~8     fff      3 bits Function number
+               //     7~2      rrrrrr   6 bits Register number
+               //     1~0      00       2 bits fixed 00
+
+               reads north bridge device ID and vendor ID. DOS ¤U run ¤~¦³®Ä¡C
+               f51 nul $CF8 $8000 0 od $CFC id
+
+*  OI          [p1 c1 p2 - c2  ] output c1 to p1 and input p2 immediately, interrupt protected (F47)
+*  OO          [p1 c1 p2 c2 -  ] output c1 to p1 and output c2 to p2 immediately, interrupt protected (f47)
+   PEEK        [addr - c     ] peek a byte from the address
+   POKE        [addr c -     ] poke a byte to the address
+   PEEKW       [addr - w     ] peek a word from the address
+   POKEW       [addr w -     ] poke a word to the address
+   FPEEK       [s o - byte   ] peek the byte on s:o far address
+   FPOKE       [s o byte -   ] poke the byte to s:o far address
+   FPEEKW      [s o - word   ] peek the word on seg:off far address
+   FPOKEW      [s o word -   ] poke the word to seg:off far address
+*  FPEEKD      [descriptor addr_high addr_low -- high low] 32 bits memory read (F47). addr_high=0 when in real mode.
+*  FPOKED      [descriptor addr_high addr_low data_high data_low -- ] 32 bits memory write (F47). addr_high=0 when in real mode.
+*  WAIT        [ticks -      ] wait 1/18 sec ticks. F48 improved, more reliable now.
+  _____________________________________________________________________________________________________
+   CLS         [ -           ] clear screen
+*  TYPE        [addr -       ] print the given string.
+   *S          [addr -       ] print the given string and then a CR (¦¹ command ¦b F51 ¤£¤p¤ßº|±¼¤F, f52 get it back)
+   //          [ -           ] Comment, interpreter ignore everything to end of line
+*  \           [ -           ] Alias of // , forth language standard comment leading character.
+   .           [a -          ] print a as decimal
+   .$          [a -          ] print a as hexdecimal
+   ."          [ -           ] print the following string till end of line
+*  S"          [ - addr      ] leaves the ASCIIZ string address. Usage: s" hello world! " type
+                               You can also use s" to create variables, data blocks, or assembly code spaces.
+   CR          [ -           ] carrage return
+  ____________________________________________________________________________________________________
+   ?EXIT       [f -          ] exit if f!=0
+*  ?BYE        [f -          ] alias of ?exit
+   EXIT        [ -           ] exit Fxx return to DOS
+*  BYE         [ -           ] alias of exit
+   ;           [ -           ] End of the #macro (alias of RET)
+   RET         [ -           ] End of the #macro
+   ?RET        [f -          ] return if TOS != 0
+   IF          [f -          ] If TOS != 0 do following until ELSE or ENDIF
+   DO          [ -           ] DO LOOP is a infinite loop
+   LOOP        [ -           ] DO LOOP
+*  +LOOP       [ - ] [i - i+1] same as LOOP but auto increases top of aux stack. Aux stack is new since F51
+*  -LOOP       [ - ] [i - i-1] same as LOOP but auto decrease  top of aux stack. Aux stack is new since F51
+   ?BREAK      [f -          ] Used in DO LOOP only, Break the loop if f != 0
+   BREAK       [ -           ] Used in DO LOOP only. Break the loop
+*  CONTINUE    [ -           ] used in do ... loop, like C's continue instruction. (F47)
+  ____________________________________________________________________________________________________
+   DEBUG       [n -          ] set debug wait ticks. if n==0 then free-run
+   ECHO        [n -          ] debug message on/off
+   SCRIPT      [ -           ] switch input stream from the script file. This is like 'go' command in break point.
+   STDIN       [ -           ] switch input stream from the stdin. This is like a break point in ##macros.
+   &DEBUG      [ - addr      ] get DEBUG's addr
+   &ECHO       [ - addr      ] get ECHO's addr
+   (D          [ -           ] debug block begin
+   D)          [ -           ] debug block end
+  ____________________________________________________________________________________________________
+   IREGS       [ - addr      ] get union IREGS's address
+   OREGS       [ - addr      ] get union OREGS's address
+   SREGS       [ - addr      ] get struct SREGS's address
+   INT86       [ -           ] interrupt system call, see C language
+   INT86X      [ -           ] interrupt system call, see C language
+*  GETREGS     [ -           ] ##iAX = _SP; ##CS  = _CS;
+                               ##DS  = _DS; ##ES  = _ES; ##SS  = _SS;
+*  SETREGS     [ -           ] Similar to getregs but reversed direction. (F47)
+                               _DS = ##DS; _ES = ##ES; _SS = ##SS; _CS = ##CS; <== °ª¬ì§Þ, ¤£­nÃhºÃ¡C
+  ____________________________________________________________________________________________________
+   %NAME       [ - n         ] get the given environment variable value (decimal)
+   %$NAME      [ - nh        ] get the given environment variable value (hex)
+   THISPSP     [ - psp       ] get the current PSP segment
+   PREVPSP     [psp - psp    ] get the previous level PSP segment
+   PSP2ENV     [psp - env    ] get the env segment of the given PSP
+   .ENV        [ -           ] dump environment variables
+   GETENV      [ - addr      ] get the env specified by next word
+   PUTENV      [ -           ] add/modify the env as following assignment
+                               putenv <ENV NAME>=<STRING> , string
+                               putenv <ENV NAME>=.  , decimal number
+                               putenv <ENV NAME>=.$ , hex number
+   SAVEENV     [env -        ] save the internal env to the given envionment segment
+   MALLOC      [size - addr  ] allocate a near memory block in the Data segment.
+   BUFFER      [ - addr      ] Get buffer address. Buffer is in current data segment.
+   BUFFER!     [addr -       ] Set allocated memory to Buffer. Error if Buffer is not a Null.
+                               ³o¬OÂ²¤Æ³]­pªº¦w±Æ¡A¥u­ã¦³¤@¶ô memory bufferÁöµM¤£¦Û¥Ñ¡A¦ý¤]¬Ù±¼«Ü¦h¥X°Ý
+                               ÃDªº¾÷·|¡C
+  ____________________________________________________________________________________________________
+   RELOAD      [ -           ] reload the script file
+   &SS         [ - addr      ] get SS's addr
+   CALL        [ - errlevel  ] spawn call. Run external program, return errorlevel.
+*  LOADFILE    [buffer length - err] load an assembly binary file to buffer in data segment
+   LOADFO      [buffer length - err] alias of loadfile
+*  FARCALL     [... s o - ...] farcall assembly code, argument=&TOS
+
+               // Sample farcall assembly code ¡]f54 ¤Þ¶i ##inline_assembly ·sªk¡A¤ñ¥H«eÂ²¤Æ¤F³\¦h¡C refer to pmtools.f10 or newer¡^
+
+               #cli \ [ -- ]
+                 s" xxx " ##inline_assembly if
+                 \ $CC b, \ int3 ¶}µo¶¥¬q¡A§Q¥Î³o¦æ¨Ó debug¡C¦¨¥\«áÂI±¼¡C
+                   $FA b, \ CLI
+                   $cb b, \ retf
+                 endif farcall ;
+
+               // ##scasd used CPU SCASD instruction to find given dward data in the given real mode space.
+               // [ start_seg start_off length/4 target_low target_high -- (offset true) | false ]
+               // Example : f54 pmtools.f10 $f000 $0 $4000 $535F $5F4D ##scasd .s <== ¶Ç¦^ [ -- addr 1 ] f000:addr ªG¯u«ü¦b _SM_ ³B
+               #scasd
+                 s" xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx " ##inline_assembly if
+                 \ $CC b,                        \ int3
+                   $55 b,                        \ push         bp
+                   $8B b, $EC b,                 \ mov          bp,sp
+                   $8B b, $5E b, $06 b,          \ mov          bx,[bp+06]  ¨ú±o TOS ªº¦ì§}¡A¦¹«á [bx] §Y TOS, [bx-2] ¬O«e¤@­Ó cell ... etc
+                   $FC b,                        \ cld
+                   $8B b, $47 b, $F8 b,          \ mov          ax,[bx-08]
+                   $8E b, $C0 b,                 \ mov          es,ax
+                   $8B b, $7F b, $FA b,          \ mov          di,[bx-06]
+                   $8B b, $4F b, $FC b,          \ mov          cx,[bx-04]
+                   $66 b, $8B b, $47 b, $FE b,   \ mov          eax,[bx-02]
+                   $F2 b, $66 b, $AF b,          \ repnz scasd
+                   $89 b, $7F b, $F8 b,          \ mov          [bx-08],di  §âµ²ªG±À¦^ data stack
+                   $89 b, $4F b, $FA b,          \ mov          [bx-06],cx
+                   $5D b,                        \ pop          bp
+                   $CB b,                        \ retf
+                 endif // [ start_segment[bx-8] start_offset[bx-6] length[bx-4] target_low[bx-2] target_high[bx] -- di cx length target_low target_high ]
+                 farcall drop drop drop if 04 - 01 else drop 0 endif
+               ;
+
+               #inline_assembly  ##xDS swap over over ##b,setup dup peek $78 == ; [ offset -- ##xDS entry first_time? ]
+
+* (Obsoleted since F54) NEARCALL    [... o - ...  ] nearcall assembly code, argument=&TOS
+
+*  FUNCALL     [n o - low high ] call C function. n is number of arguments. o is the C function's entry.
+*  MAP         [n - o        ] Translate C function ID to actual entry offset address. Refer to label_list[]
+                               in Chforth.c for C functions' ID. Don't change, append only.
+
+               00 printf    20 fopen    40 atexit      60 farmalloc
+               01 fprintf   21 fclose   41 abort       61 farfree
+               02 sprintf   22 open     42 freopen     62 farcoreleft
+               03 vsprintf  23 read     43 fdopen
+               04 puts      24 write    44 fseek
+               05 fputs     25 close    45 ftell
+               06 fputc     26 eof      46 ioctl
+               07 fputchar  27 stpcpy   47 isatty
+               08 scanf     28 strncpy  48 setvbuf
+               09 fscanf    29 strupr   49 access
+               10 sscanf    30 strcat   50 lseek
+               11 vsscanf   31 strlen   51 tmpnam
+               12 fflush    32 strcpy   52 unlink
+               13 gets      33 memcpy   53 free
+               14 fgets     34 malloc   54 filelength
+               15 bioskey   35 itoa     55 getvect
+               16 fgetc     36 ltoa     56 setvect
+               17 fgetchar  37 atoi     57 perror
+               18 wherex    38 atol     58 tell
+               19 wherey    39 ultoa    59 ungetc
+
+   .!          [d a - a      ] put decimal argument to command line of call command, see F40 r/n.
+   .$!         [d a - a      ] put hex argument to command line of call command, see F40 r/n.
+   E           [ -           ] Encrypt/Decrypt toggle
+*  S           [ -           ] Show script file buffer. F51 Improved. Try ESC, Enter, and any other key.
+*  .SCRIPT     [ -           ] Alias of S command
+   .MCACHE     [ -           ] Dump macro cache. Shift-Crtl-Alt to pause
+   CLEARCACHE  [ -           ] Clear macro cache.
+*  SFIND       [ - addr      ] e.g. DS:13f4='#w xxx^', SFIND @#w leaves 13f7h on stack (end of #w + 2). Fatal error if not found !
+                               Note1: target string in comments or strings will be ignored.
+                               Note2: a leading dummy character before the given target string is required when invoking sfind.
+                               Note3: a dummy character at the end of target string is strongly suggested.
+*  DEFINED     [ - addr      ] e.g. DS:13f4='#w xxx^', DEFINED @#w leaves 13f7h on stack. leaves 0 if not found.
+                               Note1: target string in comments or strings will be ignored.
+                               Note2: a leading dummy character before the given target string is required when invoking defined.
+                               Note3: a dummy character at the end of target string is strongly suggested.
+*  'ABC..      [ - c c c ..  ] leave ASCII values in stack. F45 or later improved, ' returns 32 (space).
+   BREAKON     [ -           ] Enable DOS Ctrl-Break feature (DOS default)
+   BREAKOFF    [ -           ] Disable DOS Ctrl-Break feature
+*  REPEAT      [n -          ] Jump to the word n in command line. Assume n=1 if stack empty (f47)
+
+               F51 nul $70 $0 $71 0 oo $70 0 $71 oi . cr 06 repeat  // ¤@¦æµ{¦¡¡Athis example shows RTC clock time from 00
+               F51 nul $4A8A 08 + dup .$ cr dup $5000 GT ?exit 02 repeat  // ¤@¦æµ{¦¡¡A§Q¥Î repeat ºâ¥X $4A8A ~ $5000 ¤§¶¡ 8 bytes ¤@¸õªº hex ­È¡C
+               F51 nul $0 $0 $46c fpeekd swap .$ .$ cr repeat  // ¤@¦æµ{¦¡¡A¤£Â_¦L¥X DOS time tick ¤§²{­È¡C
+
+  ___________________________________________________________________________________________________________
+*  READ_MSW    [ - msw       ] read CPU MSW flags, they actually are CR0[15:0]. (F47)
+*  UPDATE_CS   [CS -         ] after CR0[0] set or clear, switch PMode CS or switch back to real mode CS. (f47)
+*  READ_CR0    [ - high low  ] read CPU CR0 (f47)
+*  WRITE_CR0   [high low -   ] write to CPU CR0 (F47)
+*  READ_GDTR   [addr -       ] read GDTR to the given near address in DS
+                               Macro Read GDTR [ -- Limit low high] ##GDTR 0 0 0 &tos 04 - read_gdtr ;
+*  WRITE_GDTR  [addr -       ] write to GDTR from the given GDT structure's near address in DS
+                               Macro Write GDTR [Limit low high -- ] ##GDTR! &tos 04 - write_gdtr drop drop drop ;
+*  READ_IDTR   [addr -       ] read IDTR to the given near address in DS
+                               Macro Read IDTR [ -- Limit low high] ##IDTR 0 0 0 &tos 04 - read_idtr ;
+*  WRITE_IDTR  [addr -       ] write to IDTR from the given GDT structure's near address in DS
+                               Macro Write IDTR [Limit low high -- ] ##IDTR! &tos 04 - write_Idtr drop drop drop ;
+   PUSHFD      [ - high low  ] get 32 bits CPU flags, necessary for V86 mode check (since F54)
+  __________________________________________________________________________________________________________
+*  B,          [ b -         ] stores a byte to the address pointed by b,here, and then b,here += 1; Assembler command.
+*  B,HERE      [ - addr      ] The actual address where b, stores the byte to is MK_FP(BCOMMA.segment, BCOMMA.offset+BCOMMA.here)
+                               struct BCOMMA {          /* compiler command b, for assembly support */
+                                   unsigned here;       /* program counter b,here */
+                                   unsigned offset;     /* b,here + 2 */
+                                   unsigned segment; }; /* b,here + 4 */
+* (Obsoleted since F54) CODE_BUFFER [ - addr      ] code_bufer which is a small area reserved in code segment ended with 00h <== b, will not exceed it.
+
+  __________________________________________________________________________________________________________
+
+  Note: Stack diagram specifies the contains of stack before (left to '-') and after
+        (right to '-') the execution of the command.
+
+
+
+###
+
+

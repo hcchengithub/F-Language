@@ -1,0 +1,33 @@
+  hcchen5600 2011/08/31 15:20:07 
+  This F55 program is for eforth64 floppy image building.          vvvv-- 0.13.0         vvvvv--- 2.4.6
+  The floppy image size must be 1474560 bytes (1.44 Mega bytes) or QEMU will be strange (Bochs is ok).
+  So I need to be able get file size. This can be done by F Language interpreter F55.exe 
+  Simply define ##open, ##close, and ##filelength 3 macros then job done.
+
+  #get-filelength-of-eforth64.img     // filesize
+      s" eforth64.img" 01 ##open dup  // handle handle
+      ##filelength drop               // handle filelength
+      swap ##close                    // filelength
+  ;
+  
+  I need to use NASM to generate the suppliment ~.bin file with all 0's.
+  #generate-assembly-source-for-floppy-fill  // [ filelength -- ]
+      ." filesize  equ  " . 
+      ." disksize  equ  80*2*18*512    ; 1474560 bytes diskette size"
+      ." times disksize-filesize db 0"
+  ;
+
+  ~~~~~~~~~~ funcall words (C library) ~~~~~~~~~~~~~
+  #open  // [ filename oflag -- handle ] where oflag need to check Turbo C v2.0 fcntl.h, O_RDONLY=1,O_WRONLY=2,O_RDWR=4
+     02 022 map funcall drop ;
+  #close // [ handle -- err ]  err=0 is OK
+     01 025 map funcall drop ;
+  #filelength  // [ handle -- length_low length_high ]
+     01 054 map funcall ;
+* #farcoreleft // [ -- low high ] check DOS's remaining memory
+     00 062 map funcall ;
+* #farmalloc // [ high16 low16 -- offset segment ] get DOS's memory block
+     swap 02 060 map funcall ;
+* #printf  000 map funcall drop drop ;  [ string arg1 arg2 ... n -- ] printf , n is the number of given arguments
+* #sprintf 002 map funcall drop ; [ dest string arg1 arg2 ... n1 -- n2 ] sprintf , n1 is the number of given arguments. n2 is length
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -1,0 +1,20 @@
+
+  F55 ##b"escape post processer for b" string with \r\n and \t "         hcchen5600 2009/03/15 12:22 
+  
+  Comments
+  http://sites.google.com/site/guitardingdong/f55andbescapepost-processerflanguage
+  
+  #test b" xHello world!!\n\rHow are \"you\"?\r\n" script_here ##b"escape type ;
+
+  以上範例，「script_here ##b"escape 」請照抄。##b"escape 只有第一次會執行到，此後 b" string" 已經 escape-lized 
+  再無執行 ##b"escape 的必要，b" string" 的長度會被 ##b"escape 延伸到自己後面去，因而達到零 overhead 的效果。為
+  防 b" string" 的 length cover 不到 ##b"escape 後面， b" ... " 到 script_here 之間避免放多佔空間的註解。同理 b" ... " 
+  本身也不能太長。 b" xxxx" 的 length 最大 255。  
+  
+  // ~~~~~~~~~~~ ##b"escape translate the given b" string to a ASCIIZ string and resolve \r \n and \t escape characters  ~~~~~~~~~~~
+* #b"escape   // [ string script_here -- string ] script_here points to the white space before calling ##b"escape
+     011 + >a dup >a dup 01 - peek over over + 0 poke >a dup do a@ 0 == ?break ##b"escape_a_char -loop a> drop drop drop a@ 01 - a> a> swap dup >a - poke a> ;
+  #b"escape_a_char  dup peek '\ == if 01 + over over peek ##escape_char else over over peek endif poke 01 + swap 01 + swap ; // [to from -- to++ from++ ]
+  #escape_char  dup 'r == if drop 013 ret endif dup 'R == if drop 013 ret endif dup 'n == if drop 010 ret endif dup 'N == if drop 010 ret endif dup 't == if drop 009 ret endif dup 'T == if drop 009 ret endif ; // [char -- escchar ]  translate \r \t \n 
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  

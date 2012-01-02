@@ -1,0 +1,306 @@
+//---------------------------------------------------------------------------------------------------------//
+//   SMBIOS Tool script vF01 (Use F52.exe) 2009/02/23 by Wistron WKS RD SW NS0K00                          //
+//---------------------------------------------------------------------------------------------------------//
+1.   Get_Bit_State           // [ Date,bit -- the state of the bit: 0? 1? ]
+
+//---------------------------------------------------------------------------------------------------------
+
+#Get_Bit_State           // [ Data,Bit -- the state of the bit: 0? 1?]
+    SWAP >A  DUP $0 == IF A@ $1 & $1 ==
+                    ." "               
+                 ELSE  DUP $1 ==
+                    IF A@  $2 & $2 ==
+                       ." "
+                    ELSE  DUP $2 ==
+                       IF A@  $4 & $4 ==
+                          ." "
+                       ELSE  DUP $3 ==
+                          IF A@  $8 & $8 ==
+                             ." "
+                          ELSE DUP $4  ==
+                             IF A@ $10 & $10 ==
+                                ." "
+                             ELSE DUP $5 == 
+                                IF A@ $20 & $20 ==
+                                   ." "
+                                ELSE DUP $6 ==
+                                   IF A@  $40 & $40 ==
+                                      ." " 
+                                   ELSE DUP $7 == 
+                                      IF A@  $80 & $80 ==
+                                         ." "
+                                      ELSE   
+                                      ENDIF 
+                                   ENDIF 
+                                ENDIF 
+                             ENDIF 
+                          ENDIF 
+                       ENDIF 
+                    ENDIF 
+                 ENDIF 
+                 SWAP DROP A> DROP ; 
+                                            
+
+//---------------------------------------------------------------------------------------------------------//
+//   SMBIOS Tool script vF00 (Use F52.exe) 2009/02/20 by Wistron WKS RD SW NS0K00                          //
+//---------------------------------------------------------------------------------------------------------//
+
+1.   Find_SM_                 // [ -- Addr of _SM_ ]
+2.   Find_SMBios_Entry        // [ -- Seg Off (SMBios Entry)] 
+3.   SMBios_Entry_Seg         // [ -- Seg (SMBios Entry)]
+4.   SMBios_Entry_Off         // [ -- Off (SMBios Entry)]
+5.   Get_SMBios_DataB         // [ Off -- Data ] Get data from SMBios_Entry+off (BYTE)
+6.   Get_SMBios_DataW         // [ Off -- Data ] Get data from SMBios_Entry+off (WORD)
+7.   ReadSMBiosString         // [ Offset Length -- Each_byte_of_string ...]
+8.   ShowStackStr             // [ Length -- ]
+9.   Find_String              // [ Addr -- Length_of_string Next_string_address]
+10.  GetTypeInfo              // [ Base_addr -- Type_num Length_of_the_formatted_area Addr_of_string1 ]
+11.  Next_Type_Addr           // [ Addr_of_type -- Next_type_addr ]
+12.  Get_Type_Base            // [ Type_num -- Type_base ]
+13.  Get_Type_Formatted_Data  // [ Type_num off -- Data ]
+14.  Get_Type_String_Base     // [ Type_num String_num -- Base_addr_of_String_num ]
+15.  Show_Type_String         // [ Type_num String_num --  ]
+
+16.  Read_SMBIOS_Attrib_Byte   // [ Off -- Data ] Get data from _SM_Base+off (BYTE)
+17.  Read_SMBIOS_Attrib_Word   // [ Off -- Data ] Get data from _SM_Base+off (WORD)
+
+//---------------------------------------------------------------------------------------------------------
+
+#AUTOEXEC  ." SMBIOS Tool script vF00 (Use F52.exe) 2009/02/20 by Wistron WKS RD SW NS0K00 " CR
+           ." This tool for SMBIOS is slow. Please wait until it is finished ^_^!" CR
+           ##assembler
+           ;
+
+#Find_SM_   // [ -- Addr of _SM_ ]
+     $f000 $0 $4000 $535F $5F4D ##scasd
+     not if 0 endif
+;
+
+#Find_SM_   // [ -- Addr of _SM_ ]
+     //CR $0000 >A
+     $0000 >A
+     DO S" _S" PEEKW $F000 A@ FPEEKW - ." ."
+        IF  
+        ELSE //." Find _S anchor!" CR
+             S" M_" PEEKW $F000 A@ $2 + FPEEKW - 
+             IF 
+             ELSE A> //." Find _SM_ anchor!"
+             BREAK ENDIF
+        ENDIF 
+     +LOOP ;
+//#Find_SM_   // [ -- Addr of _SM_ ]                      // Slow one
+     //CR $0000 >A
+//   $0000 >A
+//   DO '_ 'S $100 * + $F000 A@ FPEEKW -                  //Use '_ 'S $100 * + instead of S" _S" PEEKW
+//      IF  
+//      ELSE //." Find _S anchor!" CR
+//           'M '_ $100 * + $F000 A@ $2 + FPEEKW -        //Use 'M '_ $100 * + instead of S" M_" PEEKW
+//           IF 
+//           ELSE A> //." Find _SM_ anchor!"
+//           BREAK ENDIF
+//      ENDIF 
+//   +LOOP ;
+
+#Find_SMBios_Entry   // [ -- Seg Off (SMBios Entry)]  
+     $F000 ##Find_SM_ DUP -ROT $1A + FPEEK $1000 *
+     $F000 ROT $18 + FPEEKW ;
+
+//#Find_SMBios_Entry   // [ -- Seg Off (SMBios Entry)]    // Slow one
+//     $F000 ##Find_SM_ $1A + FPEEK $1000 *
+//     $F000 ##Find_SM_ $18 + FPEEKW ;
+
+#SMBios_Entry_Seg   // [ -- Seg (SMBios Entry)]
+     ##Find_SMBios_Entry DROP ;
+
+#SMBios_Entry_Off   // [ -- Off (SMBios Entry)]
+     ##Find_SMBios_Entry SWAP DROP ;
+
+#Get_SMBios_DataB   // [ Off -- Data ] Get data from SMBios_Entry+off (BYTE)
+     //##Find_SMBios_Entry ROT + FPEEK DUP .$ ;
+     ##Find_SMBios_Entry ROT + FPEEK ;
+
+#Get_SMBios_DataW   // [ Off -- Data ] Get data from SMBios_Entry+off (WORD)
+     //##Find_SMBios_Entry ROT + FPEEKW DUP .$ ;
+     ##Find_SMBios_Entry ROT + FPEEKW ;     
+
+#ReadSMBiosString    // [ Offset Length -- Each_byte_of_string ...]
+    DO DUP 0 <= ?BREAK 01 - SWAP DUP ##Get_SMBios_DataB SWAP 01 + 02 PICK LOOP
+    DROP DROP ;
+
+#ShowStackStr    // [ Length -- ]
+    PUTENV StrBuff=0123456789abcdef   //get a 16 bytes buffer
+    GETENV StrBuff SWAP
+    OVER OVER + 00 POKE      //write \0 to end of string
+    DO DUP 0 <= ?BREAK 01 - OVER OVER + 03 PICK POKE LOOP
+    DROP TYPE
+    PUTENV StrBuff= ;
+
+#Find_String   // [ Addr -- Length_of_string Next_string_address]
+     $0000 >A
+     DO DUP ##SMBios_Entry_Seg SWAP A@ + FPEEK $0 -
+        IF  
+        ELSE
+            A> DUP ROT $1 + + BREAK 
+        ENDIF
+     +LOOP ;
+
+#GetTypeInfo   // [ Base_addr -- Type_num Length_of_the_formatted_area Addr_of_string1 ]
+    DUP ##SMBios_Entry_Seg SWAP OVER OVER $0 + FPEEK $3 PICK $3 PICK $3 PICK $1 + FPEEK SWAP OVER + ;
+
+#Next_Type_Addr // [ Addr_of_type -- Next_type_addr ]
+     ##GetTypeInfo $2 PICK DROP SWAP DROP
+     $0000 >A
+     DO DUP ##SMBios_Entry_Seg SWAP A@ + FPEEKW $00 -
+        IF  
+        ELSE
+            A> DUP ROT $2 + + BREAK 
+        ENDIF
+     +LOOP SWAP DROP ;
+
+#Get_Type_Base   // [ Type_num -- Type_base ]
+     DUP $0 ==
+     IF DROP ##SMBios_Entry_Off
+     ELSE
+        ##SMBios_Entry_Off >A
+           DO 
+           DUP A> DUP $3 PICK $2 PICK ##GetTypeInfo DROP DROP -
+           IF ##Next_Type_Addr >A
+           ELSE
+              SWAP DROP BREAK
+           ENDIF
+           LOOP
+     ENDIF ;
+
+#Get_Type_Formatted_Data   // [ Type_num off -- Data ]
+     SWAP ##Get_Type_Base + ##SMBios_Entry_Seg SWAP FPEEK ;
+
+#Get_Type_String_Base   // [ Type_num String_num -- Base_addr_of_String_num ]
+     SWAP ##Get_Type_Base ##GetTypeInfo SWAP DROP SWAP DROP
+     SWAP DUP $1 ==
+     IF DROP
+     ELSE
+         $1 - >A
+         DO A@ $0 ==
+            IF A> DROP BREAK
+            ELSE
+               ##Find_String SWAP DROP
+            ENDIF    
+         -LOOP      
+     ENDIF ;
+
+#Show_Type_String   // [ Type_num String_num --  ]
+     ##Get_Type_String_Base DUP ##Find_String DROP SWAP ##SMBios_Entry_Off - SWAP DUP >A
+     ##ReadSMBiosString
+     A> ##ShowStackStr ;
+     
+#Read_SMBIOS_Attrib_Byte   // [ Off -- Data ] Get data from _SM_Base+off (BYTE)
+     $F000 ##Find_SM_ ROT + FPEEK ;
+
+#Read_SMBIOS_Attrib_Word   // [ Off -- Data ] Get data from _SM_Base+off (WORD)
+     $F000 ##Find_SM_ ROT + FPEEKW ;
+
+  ~~~~~~~~~~~~ INT86, INT86X Registers ~~~~~~~~~~~~~~~~~~~~~~~~~
+  #iAL iregs 00 + peek ; #iAH iregs 01 + peek ; #iBL iregs 02 + peek ; #iBH iregs 03 + peek ;
+  #iCL iregs 04 + peek ; #iCH iregs 05 + peek ; #iDL iregs 06 + peek ; #iDH iregs 07 + peek ;
+  #iAX iregs 00 + peekw ; #iBX iregs 02 + peekw ; #iCX iregs 04 + peekw ; #iDX iregs 06 + peekw ;
+  #iSI iregs 08 + peekw ; #iDI iregs $A + peekw ; #oAL oregs 00 + peek ; #oAH oregs 01 + peek ;
+  #oBL oregs 02 + peek ; #oBH oregs 03 + peek ; #oCL oregs 04 + peek ; #oCH oregs 05 + peek ;
+  #oDL oregs 06 + peek ; #oDH oregs 07 + peek ; #oAX oregs 00 + peekw ; #oBX oregs 02 + peekw ;
+  #oCX oregs 04 + peekw ; #oDX oregs 06 + peekw ; #oSI oregs 08 + peekw ; #oDI oregs $A + peekw ;
+  #CY oregs $C + peek ; #FL oregs $E + peekw ; #ES sregs 00 + peekw ; #CS sregs 02 + peekw ;
+  #SS sregs 04 + peekw ; #DS sregs 06 + peekw ; #iAL! iregs 00 + swap poke ; #iAH! iregs 01 + swap poke ;
+  #iBL! iregs 02 + swap poke ; #iBH! iregs 03 + swap poke ; #iCL! iregs 04 + swap poke ; #iCH! iregs 05 + swap poke ;
+  #iDL! iregs 06 + swap poke ; #iDH! iregs 07 + swap poke ; #iSI! iregs 08 + swap pokew ; #iDI! iregs $A + swap pokew ;
+  #iAX! iregs 00 + swap pokew ; #iBX! iregs 02 + swap pokew ; #iCX! iregs 04 + swap pokew ; #iDX! iregs 06 + swap pokew ;
+  #ES! sregs 00 + swap pokew ; #CS! sregs 02 + swap pokew ; #SS! sregs 04 + swap pokew ; #DS! sregs 06 + swap pokew ;
+
+//------ Assembler ----------------------------------------------------------------------------------
+
+* #assembler
+    getregs 
+    ##nearcall_assembler
+    ##farcall_assembler
+  ;
+  ~~~~~~~~~~ B-COMMA Assembler commands ~~~~~~~~~~~~~~~~~~~~~~~~~
+  #&b,segment b,here 04 + ; [ -- n ]
+  #&b,offset  b,here 02 + ; [ -- n ]
+  #b,segment! ##&b,segment swap pokew ;
+  #b,offset!  ##&b,offset  swap pokew ;
+  #b,segment  ##&b,segment peekw ;
+  #b,offset   ##&b,offset  peekw ;
+  #b,here@    b,here peekw ;
+  #b,here!    b,here swap pokew ;
+* #b,setup    0 ##b,here! ##b,offset! ##b,segment! ;   // [ seg offset -- ] initialize b, binary code compiler
+* #near_code_entry ##b,offset ##b,here@ + pokew ; [ addr -- ] stores b,here@ to the given deferred word entry point
+* #far_code_entry  ##xDS swap ##b,setup ; [ addr -- ] stores b,here@ to the given deferred word entry point
+
+  ~~~~~~~~~~ nearcall assembly code words (in code segment) ~~~~~~~~~~~~~
+  _read_msw xx
+* #read_msw $00 sfind _read_msw peekw nearcall ; [ -- MSW ] the $00 is a dummy place holder
+  _pushfd xx
+* #pushfd   0 0 sfind _pushfd peekw nearcall ; [ -- high low ] get eflags. 0 0 are dummy place holder
+* #nearcall_assembler
+    ." Init nearcall assembly code words . . . " cr
+    ##CS code_buffer ##b,setup       // compile to code_bufer which is an area reserved in code segment
+
+    sfind _pushfd ##near_code_entry  // pushfd [ -- high low ] ##xDS 會用到，故必須為 nearcall command
+    $55 b,        // push bp
+    $8B b, $EC b, // mov  bp,sp
+    $8B b, $5E b,
+    $04 b,        // mov  bx,[bp+4]  ; TOS ( [bp+4] nearcall , [bp+6] farcall )
+    $66 b, $9C b, // pushfd
+    $58 b,        // pop ax
+    $89 b, $07 b, // mov [bx],ax
+    $58 b,        // pop ax
+    $89 b, $87 b,
+    $FE b, $FF b, // mov [bx-2],ax
+    $5D b,        // pop  bp
+    $C3 b,        // ret
+
+    sfind _read_msw ##near_code_entry  // ##xDS 會用到，故必須為 nearcall command
+    $55 b,        // push bp
+    $8B b, $EC b, // mov  bp,sp
+    $8B b, $5E b,
+    $04 b,        // mov  bx,[bp+4]  ; TOS ( [bp+4] nearcall , [bp+6] farcall )
+    $0F b, $01 b,
+    $E0 b,        // smsw ax
+    $89 b, $07 b, // mov  [bx],ax
+    $5D b,        // pop  bp
+    $C3 b,        // ret
+  ;
+* #xDS  // Executable DS [ -- DS ] real mode (DOS 給的) or protected mode (我把它定為 GDT 40h)
+    ##DS
+    ##read_msw 01 &   // check Protected mode (true)
+    ##pushfd drop 02 & 02 ^  // check VM mode (false)
+    AND
+    if drop $40 endif
+    ;
+
+  ~~~~~~~~~~ farcall assembly code words (in data segment) ~~~~~~~~~~~~~
+
+f52.exe smbios.f02 $f000 $0 $4000 $535F $5F4D ##scasd .s  <=== search "_SM_" , it works fine
+
+  _scasd xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  #scasd ##xDS sfind _scasd farcall drop drop drop if 04 - 01 else drop 0 endif ; // [ start length/4 target_low target_high -- (offset true | false) ] 
+* #farcall_assembler
+    ." Init farcall assembly code words . . . " cr
+
+    sfind _scasd  ##far_code_entry // [ start_segment[bx-8] start_offset[bx-6] length[bx-4] target_low[bx-2] target_high[bx] -- di cx length target_low target_high ] 
+    $55 b,                        \ push         bp
+    $8B b, $EC b,                 \ mov          bp,sp
+    $8B b, $5E b, $06 b,          \ mov          bx,[bp+06]
+    $FC b,                        \ cld
+    $8B b, $47 b, $F8 b,          \ mov          ax,[bx-08]
+    $8E b, $C0 b,                 \ mov          es,ax
+    $8B b, $7F b, $FA b,          \ mov          di,[bx-06]
+    $8B b, $4F b, $FC b,          \ mov          cx,[bx-04]
+    $66 b, $8B b, $47 b, $FE b,   \ mov          eax,[bx-02]
+    $F2 b, $66 b, $AF b,          \ repnz scasd
+    $89 b, $7F b, $F8 b,          \ mov          [bx-08],di
+    $89 b, $4F b, $FA b,          \ mov          [bx-06],cx
+    $5D b,                        \ pop          bp
+    $CB b,                        \ retf
+
+  ;
+
+//---------------------------------------------------------------------------------------------------------

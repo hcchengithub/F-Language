@@ -1,0 +1,50 @@
+
+  F55 ##b"escape post processer for b" string with \r\n and \t "         hcchen5600 2009/03/15 12:22 
+  
+  Comments
+  http://sites.google.com/site/guitardingdong/wang-zhan-dao-lan/f55andbescapepost-processerflanguage
+  
+  #test b" xHello world!!\n\rHow are \"you\"?\r\n" script_here ##b"escape type ;
+  
+  // ##b"escape translate the given b" string internal \r \n and \t escape characters
+  #b"escape              // [ asciiz addr -- asciiz ] addr points to the white space before calling ##b"escape
+     011 + >a            // [asciiz0 ] [after_##b"escape ]
+     dup >a              // [asciiz0 ] [after_##b"escape asciiz0 ]
+     dup 01 - peek       // [asciiz0 length] [after_##b"escape asciiz0]
+     over over + 0 poke  // [asciiz0 length] [after_##b"escape asciiz0]  change the ending " to NUL
+     >a                  // [asciiz0 ][after_##b"escape asciiz0 length]
+     dup                 // [to from ][after_##b"escape asciiz0 length]
+     do 
+       a@ 0 == ?break
+       ##b"escape_a_char // [ to from -- to++ from++ ]
+     -loop a> drop
+                         // [to from ][after_##b"escape asciiz0]
+     drop drop           // [        ][after_##b"escape asciiz0]
+     a@ 01 -             // [ &length ][after_##b"escape asciiz0]
+     a> a> swap          // [ &length after_##b"escape asciiz0 ] [         ]
+     dup >a              // [ &length after_##b"escape asciiz0 ] [ asciiz0 ]
+     - poke              // [   ] [ asciiz0 ]
+     a>                  // [ asciiz0 ]
+     ;
+  #b"escape_a_char       // [to from -- [to++ from++ ]
+     dup                 // [to from from]
+     peek                // [to from (from)]
+     '\ ==               // [to from is\?]
+     if   
+       01 + over over peek    // [to from++ to char ]
+       ##escape_char     // [to from++ to escchar ]
+     else                                    
+       over over         // [to from to from]
+       peek              // [to from to char]
+     endif               
+                         // [to from to char]
+     poke                // [to from]
+     01 + swap 01 + swap // [to++ from++]
+  ;           
+  
+  #tt b" xabc\r\t\n " dup ." ready , go !" cr stdin do ##b"escape_a_char ." take a break " cr stdin loop ;
+  
+  #escape_char    // [char -- escchar ]  translate \r \t \n 
+     dup 'r == if drop 013 ret endif dup 'R == if drop 013 ret endif dup 'n == if drop 010 ret endif dup 'N == if drop 010 ret endif 
+     dup 't == if drop 009 ret endif dup 'T == if drop 009 ret endif ;
+  

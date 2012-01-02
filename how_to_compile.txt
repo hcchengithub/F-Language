@@ -1,0 +1,100 @@
+How to compile F language
+
+Current verson is F44. Below example shows you how to compile F44.exe.
+After you can make F44.exe, you can then go on your modifications ...
+
+1. copy entire F44src.exe to F44 
+2. F44src.exe is self_extract 
+3. make sure your path environment variable setting is ready to go, 
+   such as,
+
+   PATH=c:\windows;c:\windows\command;C:\TC;C:\edit;
+
+   Clear all other unnecessary path settings or other environment 
+   variables to avoid any unexcepted disturbings. For example, 
+   you may have some settings for Visual C ++ or the likes I don't 
+   know. Clear them all, we don't need them here.
+
+4. delete all *.obj and forth.exe 
+5. run make, 
+   
+   C:\f\f44\> make > c:\f\errlog.txt
+   
+   Turbo C 2.0's make.exe reads the defaul data file makefile that I have
+   prepared for you in the working directory. Compile, link, and pklite
+   compression will be done as simple as this one-step activity.
+   
+6. Everything done in a very short time. 
+   Check the errlog.txt, it should be looked like below. See, only PNP.C
+   has 4 warnings. Congratulations, you have made it. You can run forth.exe
+   now. 
+   
+   =====================
+       MAKE  Version 2.0   Copyright (c) 1987, 1988 Borland International
+
+       Available memory 552540 bytes
+
+               tcc -1 -ms -v- -c forth.c
+       Turbo C  Version 2.01  Copyright (c) 1987, 1988 Borland International
+       forth.c:
+       Warning forth.c 195: Non-portable pointer assignment in function pause
+       Warning forth.c 196: Possibly incorrect assignment in function pause
+
+               Available memory 293038
+               tcc -1 -ms -v- -c dicforth.c
+       Turbo C  Version 2.01  Copyright (c) 1987, 1988 Borland International
+       dicforth.c:
+       Warning dicforth.c 168: Non-portable pointer conversion in function ch_conio
+       Warning dicforth.c 172: Non-portable pointer conversion in function ch_conio
+
+               Available memory 276548
+               tcc -1 -ms -v- -c chforth.c
+       Turbo C  Version 2.01  Copyright (c) 1987, 1988 Borland International
+       chforth.c:
+       Warning chforth.c 286: Suspicious pointer conversion in function ch_forth
+
+               Available memory 290666
+               tcc -1 -ms -v- -c dicenv.c
+       Turbo C  Version 2.01  Copyright (c) 1987, 1988 Borland International
+       dicenv.c:
+       Warning dicenv.c 66: Possibly incorrect assignment in function dic_env
+
+               Available memory 316394
+               tcc -1 -ms -v- -c diccrypt.c
+       Turbo C  Version 2.01  Copyright (c) 1987, 1988 Borland International
+       diccrypt.c:
+
+               Available memory 324190
+               tcc -1 -ms -v- -c pnp.c
+       Turbo C  Version 2.01  Copyright (c) 1987, 1988 Borland International
+       pnp.c:
+       Warning pnp.c 22: Non-portable pointer assignment in function InstallationCheck
+       Warning pnp.c 25: Suspicious pointer conversion in function InstallationCheck
+       Warning pnp.c 63: Non-portable pointer assignment in function dic_PnP
+       Warning pnp.c 68: Non-portable pointer assignment in function dic_PnP
+
+               Available memory 303876
+               tcc -1 -ms -v- forth.obj dicforth.obj  chforth.obj dicenv.obj diccrypt.obj pnp.obj
+       Turbo C  Version 2.01  Copyright (c) 1987, 1988 Borland International
+       Turbo Link  Version 2.0  Copyright (c) 1987, 1988 Borland International
+
+               Available memory 364970
+               pklite forth.exe
+       PKLITE (tm)   Executable File Compressor   Version 1.15   7-30-92
+       Copyright 1990-1992 PKWARE Inc.  All Rights Reserved.  Patent No. 5,051,745
+
+       Compressing: FORTH.EXE
+       Original Size: 28662  Compressed Size: 18630  Ratio: 35.1
+   =====================
+
+7. Use DOS command FC to compare forth.exe and F42.exe, they are identicle.
+8. You can start your own developing now. Just don't forget to modify "F42", "1998"
+   and the author's name in below statement in forth.c to a proper new value.
+
+    puts(
+            "Chern's F42 interpreter (C) 1995..1998 by H.C. Chen\n"
+            "Usage: f42 [<script filename> [word ...]]\n"
+            "No macro specified, we're in debug mode.\n"
+    );
+    
+###    

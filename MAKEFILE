@@ -1,0 +1,42 @@
+
+# F Language makefile   H.C. Chen 2008/12/26 08:43:43 AM 
+
+# -v- release
+# -v  debug     雖然 Turbo C 2.0 的 IDE 不 support assembly, 只要在這裡設成 debug mode, make 好的 code 還是可以用 IDE debug !!
+DEBUG = -v-
+
+forth.exe: forth.obj   dicforth.obj chforth.obj  \
+           dicenv.obj  diccrypt.obj assembly.obj \
+           frounze.obj isr_wrap.obj
+        tcc -ms $(DEBUG) -M \
+           forth.obj   dicforth.obj chforth.obj  \
+           dicenv.obj  diccrypt.obj assembly.obj \
+           frounze.obj isr_wrap.obj
+        copy forth.exe f55.exe
+        copy forth.map f55.map
+
+forth.obj: forth.c forth.h
+        tcc -ms $(DEBUG) -c forth.c
+
+dicforth.obj: dicforth.c forth.h
+        tcc -ms $(DEBUG) -c dicforth.c
+
+chforth.obj: chforth.c forth.h
+        tcc -ms $(DEBUG) -c chforth.c
+
+dicenv.obj: dicenv.c forth.h
+        tcc -ms $(DEBUG) -c dicenv.c
+
+diccrypt.obj: diccrypt.c forth.h
+        tcc -ms $(DEBUG) -c diccrypt.c
+
+assembly.obj: assembly.c forth.h isr_wrap.h
+        tcc -ms $(DEBUG) -c assembly.c
+
+frounze.obj: frounze.c isr_wrap.h pm_defs.h
+        tcc -1- -ms $(DEBUG) -c frounze.c
+
+isr_wrap.obj: isr_wrap.asm isr_wrap.h
+        nasm isr_wrap.asm -f obj
+
+

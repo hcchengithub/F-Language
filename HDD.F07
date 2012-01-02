@@ -1,0 +1,865 @@
+
+  HDD.F06 hard disk low level commands         hcchen5600 2009/03/05 17:46
+
+  // You need to check PCI config space to find the correct base address to fill in below basic constants
+
+  #ATAbase      $01f0 ; Standard IDE command block base address  (as 1F0)
+  #AtaCtrlBase  $03f4 ; Standard IDE control block base address  (as 3F4(+2=3F6))
+  #ATA_BAR      $ffff ; Bus master IDE i/o register base address (AHCI only)
+
+  #ATAbase      $6138 ; LT73 1st IDE command block base address  (as 1F0)
+  #AtaCtrlBase  $6154 ; LT73 1st IDE control block base address  (as 3F4 (+2=3F6))
+  #ATA_BAR      $ffff ; Bus master IDE i/o register base address (AHCI only)
+
+  #ATAbase      $6130 ; LT73 2nd IDE command block base address  (as 1F0)
+  #AtaCtrlBase  $6150 ; LT73 2nd IDE control block base address  (as 3F4(+2=3F6))
+  #ATA_BAR      $ffff ; Bus master IDE i/o register base address (AHCI only)
+
+  #ATAbase      $18f8 ; LT71 2nd IDE command block base address  (as 1F0)
+  #AtaCtrlBase  $18f2 ; LT71 2nd IDE control block base address  (as 3F4(+2=3F6))
+  #ATA_BAR      $ffff ; Bus master IDE i/o register base address (AHCI only)
+
+  #ATAbase      $1c00 ; LT71 1st IDE command block base address  (as 1F0)
+  #AtaCtrlBase  $18f4 ; LT71 1st IDE control block base address  (as 3F4(+2=3F6))
+  #ATA_BAR      $ffff ; Bus master IDE i/o register base address (AHCI only)
+
+  #ATA_data    ##ATAbase      ;
+  #ATA_feature ##ATAbase 01 + ;
+  #ATA_error   ##ATAbase 01 + ;  7.CRC 6.UNC 5.0 4.IDN 3.0 2.ABT 1.T0N 0.AMN
+  #ATA_count   ##ATAbase 02 + ;
+  #ATA_lba_L   ##ATAbase 03 + ;
+  #ATA_lba_M   ##ATAbase 04 + ;
+  #ATA_lba_H   ##ATAbase 05 + ;
+  #ATA_device  ##ATAbase 06 + ;
+  #ATA_cmd     ##ATAbase 07 + ;
+  #ATA_status  ##ATAbase 07 + ;  7.BSY 6.RDY 5.DF 4.DSC 3.DRQ 2.COR 1.IDX 0.ERR
+
+  #BMICP       ##ATA_BAR      ;
+  #BMISP       ##ATA_BAR 02 + ;
+  #BMIDP       ##ATA_BAR 04 + ;
+
+  // Have user to check PCI config space to make sure the base addresses
+  // assumed here are correct
+  #ATA_base_address_confirm
+    ." ##UDMA_ReadSector_C8h, pleae check out below base addresses, " cr
+    ." #ATAbase      =" ##ATAbase .$  cr
+    ." #AtaCtrlBase  =" ##AtaCtrlBase .$ cr
+    ." #ATA_BAR      =" ##ATA_BAR .$ cr
+  ;
+
+  f54 hdd.f06 ##ATA_reset ##UDMA_ReadSector_C8h $6000 0 ##dd
+  // Read MBR to 6000:0000 by C8h Read sectors via DMA
+  // Works fine on all machine includes LT73 none-AHCI mode but not QEMU
+* #UDMA_ReadSector_C8h
+    ##ATA_base_address_confirm
+    ." Select the first HDD, ##ATA_device bit 6 enables LBA addressing mode" cr
+    ##ATA_device $E0 o
+    ." Stop bus master by clearing BMIC. bit[3]=0 memory read is safer." cr
+    ##BMICP $00 o
+    ." PRD at 5000:ff00 points to 6000:0000 only one sector 512 bytes long" cr
+    ##ATA_PRD_table_setup
+      ##BMIDP       $00 o
+      ##BMIDP $01 + $FF o
+      ##BMIDP $02 + $05 o
+      ##BMIDP $03 + $00 o
+    ." check status of DMA controller, should be 00" cr
+    ##BMISP i ." BMISP=" .$ cr
+    ." Clear BMIS interrupt and error flags" cr
+    ##BMISP $06 o // clear interrupt and error flags
+    ##BMISP i ." BMISP=" .$ cr
+    ##Wait_not_BSY
+    ##Wait_RDY
+    ." Not BSY & RDY now, device $E0, BMICP=00, PRD ready, BMISP cleared, " cr (d stdin d)
+    ." sector count = 1" cr
+      ##ATA_count $01 o
+    ." Writing lba from LSB to MSB , however they are all 00 to read MBR" cr
+      ##ATA_lba_L $01 o   // sector number
+      ##ATA_lba_M $00 o   // cylinder low
+      ##ATA_lba_H $00 o   // cylinder high
+    ." Count=1, lba=0, about to issue $c8 Read DMA command . . ." cr (d stdin d)
+      ##ATA_status i ."   ATA_status=" .$ cr
+      ##BMICP i ."   BMICP=" .$ cr
+      ##ATA_cmd $c8 o
+      ##ATA_status i ."   ATA_status=" .$ cr
+    ." C8h command issued, about to start DMA by asserting BMICP[3,0]=1,1 (bit3=1 to read sector/write memroy) and start bit (bit0=1 to start)" cr (d stdin d)
+      ##BMICP $09 o
+      ##BMICP i ." BMICP=" .$ cr
+      ##BMISP i ." BMISP=" .$ cr
+    ." BMICP[0]=1 has armed, DMA working now, waiting for BMISP[0] to be cleared to 0 after DMA completed." cr (d stdin d)
+      ##BMISP i ." BMISP=" .$ cr
+      ##Wait_BMISP
+    ." Clear BMICP ... " cr
+    ##BMICP $00 o
+    ##Wait_BMISP
+    cr
+    ." MBR of first HDD has been read to 6000:0000 now." cr
+    ." Check it out by debug.com or DR.com." cr
+  ;
+
+  f54 hdd.f06 ##PIO_ReadSector_Ext_24h
+  // Read MBR to 6000:0000 by 48 bits lba PIO command
+  // Works fine on all machine includes LT73 none-AHCI mode and QEMU
+* #PIO_ReadSector_Ext_24h
+    ##IRQ14-
+    ##ATA_device $e0 o // master HDD
+      ##Wait_not_BSY
+      ##Wait_RDY
+      ." Not BSY & RDY now, device $E0" cr
+    // sector count
+      ##ATA_count $00 o   // MSB
+      ##ATA_count $01 o   // LSB , one sector
+    // lba LSB to MSB , however they are all 00 to read MBR
+      ##ATA_lba_H $00 o   // MSB
+      ##ATA_lba_M $00 o
+      ##ATA_lba_L $00 o
+      ##ATA_lba_H $00 o
+      ##ATA_lba_M $00 o
+      ##ATA_lba_L $00 o   // LSB
+    // 0x24 Read sector ext command
+      ." Count=1, lba=0, about to issue $24 command" cr
+      ##ATA_cmd $24 o
+    ##Wait_not_BSY
+    ##Wait_DRQ
+    ##1sectorR
+    ##Wait_RDY
+    ##IRQ14+
+  ;
+
+  #Wait_BMISP
+    do
+    ##BMISP i dup ." BMISP=" .$ ##ATA_status i ."   ATA_status=" .$ ##ATA_error i ."   ATA_error=" .$ cr
+    dup $01 & not if drop break endif // DMA transfer completed
+        $06 &     ?break              // Interrupt bit or Error bit raised
+    loop
+  ;
+  #Wait_BMISP
+    ##BMISP i ." BMISP=" .$ ##ATA_status i ."   ATA_status=" .$ cr
+    ##BMISP i ." BMISP=" .$ ##ATA_status i ."   ATA_status=" .$ cr
+    ##BMISP i ." BMISP=" .$ ##ATA_status i ."   ATA_status=" .$ cr
+    ##ATA_status i ." ATA_status=" .$ cr
+    036 wait ." ... 2 sec later ..." cr
+    ##BMISP i ." BMISP=" .$ ##ATA_status i ."   ATA_status=" .$ cr
+    ##BMISP i ." BMISP=" .$ ##ATA_status i ."   ATA_status=" .$ cr
+    ##BMISP i ." BMISP=" .$ ##ATA_status i ."   ATA_status=" .$ cr
+    ##BMISP i ." BMISP=" .$ ##ATA_status i ."   ATA_status=" .$ cr
+  ;
+  #Wait_DRQ
+    do ##ATAbase 07 + i dup 0256 * ##ATAbase 01 + i + ." 1F7|1F1=" .$ cr
+    $08 & ?break loop
+  ;
+  #Wait_RDY
+    do ##ATAbase 07 + i dup 0256 * ##ATAbase 01 + i + ." 1F7|1F1=" .$ cr
+    $40 & ?break loop
+  ;
+  #Wait_not_BSY
+    do ##ATAbase 07 + i dup 0256 * ##ATAbase 01 + i + ." 1F7|1F1=" .$ cr
+    $80 & not ?break loop
+  ;
+  // Setup PRD at 5000:ff00 point to 6000:0000 512 bytes long
+  #ATA_PRD_table_setup
+    $5000 $FF00 $00 fpoke
+    $5000 $FF01 $00 fpoke
+    $5000 $FF02 $06 fpoke
+    $5000 $FF03 $00 fpoke
+    $5000 $FF04 $00 fpoke
+    $5000 $FF05 $02 fpoke
+    $5000 $FF06 $00 fpoke
+    $5000 $FF07 $80 fpoke
+  ;
+
+  f54 hdd.f06 $A0 ##ATA_08
+  // there's no 08h ATA command !! return value is 5104 where 04 is Abort
+  // Doesn't work on QEMU, return 0001
+* #ATA_08 // [A0|B0-- ]  Device Reset, reset individual device
+    ##IRQ14- ##wait_ATA
+    ." Issue HDD $08 command to reset the specified device " cr
+    ##ATAbase 06 + swap o  // A0=Primary Drive, B0=Slave Drive
+    ##ATAbase 07 + $08  o  // Device Reset
+    ." Return " cr
+    ##wait_ata ##wait_ata ##wait_ata ##wait_ata ##IRQ14+
+  ;
+
+  f54 hdd.f06 $a0 ##ATA_a1
+  f54 hdd.f06 $b0 ##ATA_a1
+  // A1 seems to be CDROM ATAPI command?  hcchen5600 2009/03/06 08:36
+  // No A1 comamnd in SATA HDD either !!  Return status/error 5104
+* #ATA_A1 // [A0|B0-- ]  Identify packet device command, it returns 256 words
+    ##IRQ14-
+    ." Issue HDD $A1 command to read Identify packet 256 words" cr
+    ##ATAbase 06 + swap o  // A0=Primary Drive, B0=Slave Drive
+    ##ATAbase 07 + $A1  o  // Identify packet device
+    ." Return " cr
+    ##wait_ata ##wait_ata ##wait_ata ##wait_ata ##IRQ14+
+    ##wait_ata ##wait_ata ##wait_ata ##wait_ata ##IRQ14+
+    ##1sectorR
+    ##IRQ14+
+  ;
+* #ATA_reset // 3F6_reset
+    ##AtaCtrlBase 02 + 04 o ##AtaCtrlBase 02 + 00 o
+  ;
+* #wait_ATA
+    ##ATAbase 07 + i dup 0256 * ##ATAbase 01 + i + ." 1F7|1F1=" .$ ."  "
+    ##ATAbase 07 + i dup 0256 * ##ATAbase 01 + i + ." 1F7|1F1=" .$ ."  "
+    ##ATAbase 07 + i dup 0256 * ##ATAbase 01 + i + ." 1F7|1F1=" .$ ."  "
+    09 wait
+    ##ATAbase 07 + i dup 0256 * ##ATAbase 01 + i + ." 1F7|1F1=" .$ cr
+  ;
+
+  F54 HDD.F06 $A0 ##ATA_20
+  // Ok now! it works on Fnote1.1, QEMU, I guess all machine none-AHCI mode
+* #ATA_20 // [A0|B0-- ]  Read one sector. fixed at drive 0
+    ##IRQ14-
+    ." Soft reset . . . " cr ##Ata_reset
+    ##Wait_not_BSY
+    ." Issue HDD $20 command to read C0 H0 S1 1 sector" cr
+    ##ATAbase 02 +  01 o  // sector count always 1
+    ##ATAbase 03 +  01 o  // sector number 1
+    ##ATAbase 04 +  00 o  // Cylinder low 0
+    ##ATAbase 05 +  00 o  // Cylinder high 0
+    ##ATAbase 06 + swap o  // fixed at Drive 0, head 0
+    ##ATAbase 07 + $20 o   // Read sector
+    ##Wait_not_BSY
+    ##Wait_DRQ
+    ##1sectorR
+    ##Wait_RDY
+    ##IRQ14+
+  ;
+
+  F54 HDD.F06 $A0 ##ATA_EC
+  // works fine on all machine none-AHCI mode
+* #ATA_EC // [A0|B0-- ]  Identify device , very useful, it works fine on LT71 LT73 hcchen5600 2009/03/05 17:52
+    ##IRQ14-
+    ." Soft reset . . . " cr ##Ata_reset
+    do
+      ##ATAbase 07 + i dup 0256 * ##ATAbase 01 + i + ." 1F7|1F1=" .$ cr
+      $f0 & $50 == ?break
+    loop ##ATAbase 07 + i 0256 * ##ATAbase 01 + i + ." 1F7|1F1=" .$ cr
+    ." Issue HDD $EC Identify Device command to read config data" cr
+    ##ATAbase 02 +  01 o  // sector count always 1
+    ##ATAbase 03 +  01 o  // sector number 1
+    ##ATAbase 04 +  00 o  // Cylinder low 0
+    ##ATAbase 05 +  00 o  // Cylinder high 0
+    ##ATAbase 06 + swap o  // fixed at Drive 0, head 0
+    ##ATAbase 07 + $EC o   // Read sector
+    do ##ATAbase 07 + i dup 0256 * ##ATAbase 01 + i + ." 1F7|1F1=" .$ cr $80 & $00 == ?break loop ##ATAbase 07 + i 0256 * ##ATAbase 01 + i + ." 1F7|1F1=" .$ cr
+    ##1sectorR
+    ##IRQ14+
+  ;
+---------- int 13 AH=48 test program for CMVC 20807 --------------------------------
+
+f54 hdd.f06 $6000 $0000 $80 ##int13_ah48
+f54 hdd.f06 ##dump_buffer
+
+  #Int13_AH48  // [DS SI DL -- AH CY]
+      ##iDL! ##iSI! ##DS!
+      ##clear_buffer
+      $48 ##iAH! $13 int86x
+      ##oAH ##CY
+      ." CY :  " .$
+      cr
+      ." AH :  " .$
+      ##dump_buffer
+  ;
+
+  #clear_buffer  // DS SI must be given in prior !!
+      ##DS 00 == if ." DS is zero !! " cr exit endif
+      ##DS ##iSI 00 + $30 fpoke
+      01 >a do
+        ##DS ##iSI a@ + 00 fpoke
+        a@ $2f == ?break
+      +loop a> drop
+  ;
+
+  #dump_buffer  // DS and SI must be given first !!
+      cr
+      0 >a do
+        ##DS ##iSI a@ + fpeek .$ ."  "
+        a@ $2f == ?break
+      +loop a> drop
+  ;
+
+  #Int13_AH48  // [DS SI DL -- AH CY]
+      call symdeb.exe
+      drop
+      ##iDL! ##iSI! ##DS!
+      $48 ##iAH! $13 int86x
+      ##oAH ##CY
+      .s
+      call symdeb.exe
+  ;
+
+  -------------------------------------------------------------------------------
+  #IRQ14-  $A1 dup i $40 | o ; [ -- ]
+  #IRQ14+  $A1 dup i $40 ~ &  o ; [ -- ]
+
+  #E2 // [Count(1F2) --] Standby
+    ##IRQ14- cr ##ATAbase 02 + swap o ##ATAbase 06 + $A0 o ##ATAbase 07 + $E2 o
+    ." Setting HDD Standby timer .... " cr do ##ATAbase 07 + i $D0 & $50 == ?break loop
+    ." Ok " cr ##IRQ14+ ;
+  #E5 // HDD Power saving mode count setting [-- 1F2 1F4]
+    ##IRQ14- cr ##ATAbase 06 + $A0 o ##ATAbase 07 + $E5 o do ##ATAbase 07 + i $D0 & $50 == ?break loop
+    ##ATAbase 02 + i ##ATAbase 04 + i ##IRQ14+ ;
+
+f40 hdd.f03 ##a1
+f40 hdd.f03 ##f1
+
+  #A1 // Identify packet device
+    ##IRQ14-
+    ##ATAbase 06 + $A0 o ##ATAbase 07 + $a1 o
+    do ##ATAbase 07 + i $D0 & $50 == ?break loop
+    ##1sectorR
+    ##IRQ14+
+  ;
+
+  F1  Security Set password <== Set user or master pasword
+  F2  Security Unlock <== Unlock
+  F3  Security Erase prepare <== before Erase unit
+  F4  Security Erase Unit <== needs user or master password
+  F5  Security Freeze lock
+  F6  Security disable password
+
+  #F1 // Security set password
+    ##IRQ14-
+    ##ATAbase 06 + $A0 o ##ATAbase 07 + $F1 o
+    do ##ATAbase 07 + i $D0 & $50 == ?break ." ." loop
+    // { ---- Write 1 sector
+    ##ATAbase $00 ow  // bit0=Master/user bit8=Maximum/high
+    ##ATAbase $04 ow
+    ##ATAbase $04 ow
+    ##ATAbase $04 ow
+    0251 0 do
+      ##ATAbase $00 ow
+    01 + over over < if drop drop ret endif loop
+    // } ---- Write 1 sector
+    ##IRQ14+
+  ;
+  #F2 // Security Unlock
+    ##IRQ14-
+    ##ATAbase 06 + $A0 o ##ATAbase 07 + $F6 o
+    do ##ATAbase 07 + i dup .$ $D0 & $50 == ?break loop
+    // { ---- Write 1 sector
+    ##ATAbase $0000 ow  // bit0=master/User bit8=maximum/High
+    ##ATAbase '2    ow  // password is '2'
+    ##ATAbase $0    ow
+    ##ATAbase $0    ow
+    0251 0 do
+      ##ATAbase $00 ow
+    01 + over over < if drop drop ret endif loop
+    // } ---- Write 1 sector
+    do ##ATAbase 07 + i dup .$ $D0 & $50 == ?break loop
+    ##IRQ14+
+  ;
+
+  #F6 // Security disable password , remove password. Works fine on LT73 hcchen5600 2009/03/05 17:55  
+    ##IRQ14-
+    ##ATAbase 06 + $A0 o ##ATAbase 07 + $F6 o
+    do
+      ##ATAbase 07 + i dup .$ ."  "
+      ##ATAbase 01 + i     .$ cr
+      $D8 & $58 == ?break
+    loop
+    cr
+    ." Write 1 sector . . . "
+      ##ATAbase $0000 ow  // bit0=master/user bit8=maximum/high
+      ##ATAbase $3231 ow  // password is "12"
+      ##ATAbase $0    ow
+      ##ATAbase $0    ow
+      0252 >a do  // Write 1 sector
+        a@ 0 == ?break
+        ##ATAbase $00 ow
+      -loop a> drop
+    ." done " cr
+    do
+      ##ATAbase 07 + i dup .$ ."  "
+      ##ATAbase 01 + i     .$ cr
+      $D0 & $50 == ?break
+    loop
+    ##IRQ14+
+  ;
+
+  // read ATA data 256 words to ##64k buffer and dump
+  // works fine hcchen5600 2009/03/06 09:32
+  #1sectorR // [ -- ]
+    0 >a do
+      a@ 0256 == ?break
+      ##64k_segment peekw ##64k_offset peekw a@ 02 * + ##ATAbase iw fpokew
+    +loop a> drop
+    ##64k_segment peekw ##64k_offset peekw ##ddd drop drop
+  ;
+
+  f54 hdd.f06 ##1sectorW
+  // write ATA 256 words from ##64k to HDD
+  // seems ok
+  #1sectorW // [ -- ]
+    0 >a do
+      a@ 0256 == ?break
+      ##ATAbase ##64k_segment peekw ##64k_offset peekw a@ 02 * + fpeekw ##ow
+    +loop a> drop
+  ;
+  #ow // [ port word -- ]  real ow
+    ow ;
+  #ow // [ port word -- ]  debuging version of ow
+    a@ .$ ."  port " swap .$ ."  data " .$ cr ;
+
+  f54 hdd.f06 ##dump_64k_buffer
+  #dump_64k_buffer // [ -- seg off++ ]
+    ##64k_segment peekw ##64k_offset peekw ##dd 
+  ;
+
+  f54 hdd.f06 ##clear_64k_buffer
+  #clear_64k_buffer
+    ##64k_segment peekw ##64k_offset peekw 0 fpoke
+    ##64k_segment peekw ##64k_offset peekw
+    ##64k_segment peekw ##64k_offset peekw 01 + 0 0512 ##BigRealMOVSB
+  ;
+  ~~~~ Protected Mode High level tools ~~~~~~~~~~~~~~~~~~~~
+  [ high low -- ] dump 256 bytes from given 32bit address. Enter Big Real Mode in prior using this macro.
+  example: f54 pmtools.f10 $f $ff00 ##xdd <= dump BIOS ending 256 bytes
+* #xdd
+     ##64k_offset peekw ##64k_segment peekw
+     dup 016 *                  // high low buffer_off buffer_seg 210S
+     swap $1000 / swap          // high low buffer_off 000S 210S
+     rot 0 swap                 // high low 000S 210S 0 buffer_off
+     L+                         // high low buffer_hi buffer_lo
+     0 0256 04 / ##BigRealMOVSD //
+     ##64k_segment peekw ##64k_offset peekw ##dd // seg off+256
+     drop drop
+     ;
+
+  // TUT10 trick, allow DS ES to access 4G bytes flat space  [ -- ]
+* #big_real_mode
+    // Change the DS to a 4G flat space descripter
+    ##DS 016 * ##DS 04096 / $FFFF 0 ##ACS_DATA  ##ATTR_16bits_4Gmax ##&GDT $10 + ##setup_GDT_entry
+    ##PMode
+    ##RMode
+  ;
+* #PMode
+    read_msw 01 & if
+    ." We need to be in real mode first. " cr
+    ." CPU is already in PMode. System out of my control. Abort." cr exit
+    endif
+    // Setting up the GDTR register
+    016 08 * 01 -  // length of GDT is n * 8 bytes - 1 小心搞清楚 GDT 要多大，目前保留了 16 個。 -Hcchen5600 2008/12/14 下午3:37
+    0 ##DS 016 L* 0 ##&GDT L+ swap ##GDTR!   // [limit low high --]
+    ##cli
+    // Setting up the IDTR register
+    // 進 Protected Mode 之前做，離開後要清掉。記得先 ##CLI。
+    // IRQ 即使不用也最好要設定好 IDTR。 F47 會處理 CPU exceptions，你一定和我一樣常出錯，靠 CPU Protection 幫你抓 bug 很幸福。
+    $22 08 * 01 -     // length of IDT is $22 * 8bytes (INT00~INT21h), limit = length-1
+    0 ##DS 016 L* 0 ##&IDT L+ swap ##IDTR!  // [limit low high --]
+    // Entering PMode
+    ##&old_CS ##CS pokew  ##&old_DS ##DS pokew  ##&old_ES ##ES pokew  ##&old_SS ##SS pokew // save real mode segments
+    $08 ##CS! $10 ##DS! $10 ##ES! $18 ##SS! read_cr0 01 | write_cr0 setregs
+    // in PMode now
+    ;
+* #RMode
+    // switching back to real mode
+    read_cr0 $FFFE & write_cr0
+    ##&old_SS peekw ##SS!  ##&old_ES peekw ##ES!  ##&old_DS peekw ##DS!  ##&old_CS peekw ##CS! // restore
+    setregs
+    // in real mode now
+    // restore IDTR register
+    $3FF 0 0 ##IDTR!
+    ##STI
+    ;
+  /* Segment desciptor definition */
+  typedef struct {
+     word limit,                    #GDT.limit    00 + ;
+          base_l;                   #GDT.base_l   02 + ;
+     byte base_m,                   #GDT.base_m   04 + ;
+          access,                   #GDT.access   05 + ;
+          attribs,                  #GDT.attribs  06 + ;
+          base_h; } DESCR_SEG;      #GDT.base_h   07 + ;
+
+  Don't change this line, it stores variables. ==> [ _gdt_base_low ww , _gdt_base_high ww , _gdt_limit_low ww , _gdt_limit_high ww , _gdt_access ww , _gdt_attribute ww , _gdt(n)_addr ww -- ]
+* #setup_GDT_entry
+    sfind @_gdt(n)_addr    swap pokew  // 土土地把 stack arguments 存成 variables
+    sfind @_gdt_attribute  swap pokew
+    sfind @_gdt_access     swap pokew
+    sfind @_gdt_limit_high swap pokew
+    sfind @_gdt_limit_low  swap pokew
+    sfind @_gdt_base_high  swap pokew
+    sfind @_gdt_base_low   swap pokew
+
+    sfind @_gdt(n)_addr peekw ##GDT.attribs  sfind @_gdt_attribute peekw sfind @_gdt_limit_high peekw | poke
+    sfind @_gdt(n)_addr peekw ##GDT.access   sfind @_gdt_access    peekw poke
+    sfind @_gdt(n)_addr peekw ##GDT.limit    sfind @_gdt_limit_low peekw pokew
+    sfind @_gdt(n)_addr peekw ##GDT.base_h   sfind @_gdt_base_high peekw >> >> >> >> >> >> >> >> poke
+    sfind @_gdt(n)_addr peekw ##GDT.base_l   sfind @_gdt_base_low  peekw pokew
+    sfind @_gdt(n)_addr peekw ##GDT.base_m   sfind @_gdt_base_high peekw $ff & poke
+  ;
+
+  /* Interrupt desciptor definition */
+  typedef struct   {
+    word offset_l,                  #IDT.offset_l    00 + ;
+         selector;                  #IDT.selector    02 + ;
+    byte param_cnt,                 #IDT.param_cnt   04 + ;
+         access;                    #IDT.access      05 + ;
+    word offset_h; } DESCR_INT;     #IDT.offset_h    06 + ;
+
+  Don't change this line, it stores variables ==> [ _idt_selector ww, _idt_offset_low ww, _idt_offset_high ww, _idt_access ww, _idt_param_cnt ww, _idt(n)_addr ww -- ]
+* #setup_IDT_entry
+    sfind @_idt(n)_addr     swap pokew  // 土土地把 stack arguments 存成 variables
+    sfind @_idt_param_cnt   swap pokew
+    sfind @_idt_access      swap pokew
+    sfind @_idt_offset_high swap pokew
+    sfind @_idt_offset_low  swap pokew
+    sfind @_idt_selector    swap pokew
+    sfind @_idt(n)_addr peekw ##IDT.param_cnt  sfind @_idt_param_cnt   peekw poke
+    sfind @_idt(n)_addr peekw ##IDT.access     sfind @_idt_access      peekw poke
+    sfind @_idt(n)_addr peekw ##IDT.offset_h   sfind @_idt_offset_high peekw pokew
+    sfind @_idt(n)_addr peekw ##IDT.offset_l   sfind @_idt_offset_low  peekw pokew
+    sfind @_idt(n)_addr peekw ##IDT.selector   sfind @_idt_selector    peekw pokew
+  ;
+* #init_descriptor_tables   // [ -- ] init GDT IDT , TUT04 TUT05 common
+
+    // setup_GDT
+    0 0 0 0 0 0 ##&GDT ##setup_GDT_entry
+    ##CS 016 * ##CS 04096 / $FFFF 0 ##ACS_CODE  ##ATTR_16bits_1Mmax ##&GDT $08 + ##setup_GDT_entry
+    ##DS 016 * ##DS 04096 / $FFFF 0 ##ACS_DATA  ##ATTR_16bits_1Mmax ##&GDT $10 + ##setup_GDT_entry
+    ##SS 016 * ##SS 04096 / $FFFF 0 ##ACS_STACK ##ATTR_16bits_1Mmax ##&GDT $18 + ##setup_GDT_entry
+    $8000      $000B        $FFFF 0 ##ACS_DATA  ##ATTR_16bits_1Mmax ##&GDT $20 + ##setup_GDT_entry
+    ##DS 016 * ##DS 04096 / $FFFF 0 ##ACS_CODE  ##ATTR_16bits_1Mmax ##&GDT $40 + ##setup_GDT_entry // Executable DS copy for farcall assembly codes
+    ##DS 016 * ##DS 04096 / $FFFF 0 ##ACS_DATA  ##ATTR_16bits_1Mmax ##&GDT $48 + ##setup_GDT_entry // reserved for ##pMOVEx  source
+    ##DS 016 * ##DS 04096 / $FFFF 0 ##ACS_DATA  ##ATTR_16bits_1Mmax ##&GDT $50 + ##setup_GDT_entry // reserved for ##pMOVEx  destination
+
+    // setup_IDT
+    // setup_idt_entry [selector offset_low offset_high access param_cnt &idt(n) - ]
+    $08 &isr_wrapper_table 02 $00 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $00 * + ##setup_IDT_entry   // INT 00h
+    $08 &isr_wrapper_table 02 $01 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $01 * + ##setup_IDT_entry   // INT 01h
+    $08 &isr_wrapper_table 02 $02 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $02 * + ##setup_IDT_entry   // INT 02h
+    $08 &isr_wrapper_table 02 $03 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $03 * + ##setup_IDT_entry   // INT 03h
+    $08 &isr_wrapper_table 02 $04 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $04 * + ##setup_IDT_entry   // INT 04h
+    $08 &isr_wrapper_table 02 $05 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $05 * + ##setup_IDT_entry   // INT 05h
+    $08 &isr_wrapper_table 02 $06 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $06 * + ##setup_IDT_entry   // INT 06h
+    $08 &isr_wrapper_table 02 $07 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $07 * + ##setup_IDT_entry   // INT 07h
+    $08 &isr_wrapper_table 02 $08 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $08 * + ##setup_IDT_entry   // INT 08h
+    $08 &isr_wrapper_table 02 $09 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $09 * + ##setup_IDT_entry   // INT 09h
+    $08 &isr_wrapper_table 02 $0a * + peekw 0 ##ACS_INT 0 ##&IDT 08 $0a * + ##setup_IDT_entry   // INT 0ah
+    $08 &isr_wrapper_table 02 $0b * + peekw 0 ##ACS_INT 0 ##&IDT 08 $0b * + ##setup_IDT_entry   // INT 0bh
+    $08 &isr_wrapper_table 02 $0c * + peekw 0 ##ACS_INT 0 ##&IDT 08 $0c * + ##setup_IDT_entry   // INT 0ch
+    $08 &isr_wrapper_table 02 $0d * + peekw 0 ##ACS_INT 0 ##&IDT 08 $0d * + ##setup_IDT_entry   // INT 0dh
+    $08 &isr_wrapper_table 02 $0e * + peekw 0 ##ACS_INT 0 ##&IDT 08 $0e * + ##setup_IDT_entry   // INT 0eh
+    $08 &isr_wrapper_table 02 $0f * + peekw 0 ##ACS_INT 0 ##&IDT 08 $0f * + ##setup_IDT_entry   // INT 0fh
+    $08 &isr_wrapper_table 02 $10 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $10 * + ##setup_IDT_entry   // INT 10h
+    $08 &isr_wrapper_table 02 $11 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $11 * + ##setup_IDT_entry   // INT 11h
+    $08 &isr_wrapper_table 02 $12 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $12 * + ##setup_IDT_entry   // INT 12h
+    $08 &isr_wrapper_table 02 $13 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $13 * + ##setup_IDT_entry   // INT 13h
+    $08 &isr_wrapper_table 02 $14 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $14 * + ##setup_IDT_entry   // INT 14h
+    $08 &isr_wrapper_table 02 $15 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $15 * + ##setup_IDT_entry   // INT 15h
+    $08 &isr_wrapper_table 02 $16 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $16 * + ##setup_IDT_entry   // INT 16h
+    $08 &isr_wrapper_table 02 $17 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $17 * + ##setup_IDT_entry   // INT 17h
+    $08 &isr_wrapper_table 02 $18 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $18 * + ##setup_IDT_entry   // INT 18h
+    $08 &isr_wrapper_table 02 $19 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $19 * + ##setup_IDT_entry   // INT 19h
+    $08 &isr_wrapper_table 02 $1a * + peekw 0 ##ACS_INT 0 ##&IDT 08 $1a * + ##setup_IDT_entry   // INT 1ah
+    $08 &isr_wrapper_table 02 $1b * + peekw 0 ##ACS_INT 0 ##&IDT 08 $1b * + ##setup_IDT_entry   // INT 1bh
+    $08 &isr_wrapper_table 02 $1c * + peekw 0 ##ACS_INT 0 ##&IDT 08 $1c * + ##setup_IDT_entry   // INT 1ch
+    $08 &isr_wrapper_table 02 $1d * + peekw 0 ##ACS_INT 0 ##&IDT 08 $1d * + ##setup_IDT_entry   // INT 1dh
+    $08 &isr_wrapper_table 02 $1e * + peekw 0 ##ACS_INT 0 ##&IDT 08 $1e * + ##setup_IDT_entry   // INT 1eh
+    $08 &isr_wrapper_table 02 $1f * + peekw 0 ##ACS_INT 0 ##&IDT 08 $1f * + ##setup_IDT_entry   // INT 1fh
+    $08 &isr_wrapper_table 02 $20 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $20 * + ##setup_IDT_entry   // INT 20h
+    $08 &isr_wrapper_table 02 $21 * + peekw 0 ##ACS_INT 0 ##&IDT 08 $21 * + ##setup_IDT_entry   // INT 21h
+  ;
+
+  Read  GDTR [-- Limit low high]
+* #GDTR 0 0 0 &tos 04 - read_gdtr ;
+
+  Write GDTR [Limit low high -- ]
+* #GDTR! &tos 04 - write_gdtr drop drop drop ;
+
+  Read  IDTR [-- Limit low high]
+* #IDTR 0 0 0 &tos 04 - read_idtr ;
+
+  Write IDTR [Limit low high -- ]
+* #IDTR! &tos 04 - write_idtr drop drop drop ;
+
+  Memory allocations for GDT IDT
+  _GDT_ 00      08      10      18      20      28      30      38      40      48      50      58      60      68      70      78   end
+  _IDT_ 0       1       2       3       4       5       6       7       8       9       A       B       C       D       E       F    end
+        12345678123456781234567812345678123456781234567812345678123456781234567812345678123456781234567812345678123456781234567812345678
+        12345678123456781234567812345678123456781234567812345678123456781234567812345678123456781234567812345678123456781234567812345678
+  #&GDT sfind @_GDT_ ;
+  #&IDT sfind @_IDT_ ;
+
+  Save-Restore real mode system resources
+  _old_CS_ xx #&old_CS sfind @_old_CS_ ;
+  _old_DS_ xx #&old_DS sfind @_old_DS_ ;
+  _old_ES_ xx #&old_ES sfind @_old_ES_ ;
+  _old_SS_ xx #&old_SS sfind @_old_SS_ ;
+
+  ~~~~ Descripter (segment) definitions for protected mode programming ~~~~~~~~~~~~~~~~~~~~
+  #ATTR_GRANULARITY_BYTE $00 ;
+  #ATTR_GRANULARITY_4K   $80 ;
+  #ATTR_32BIT        $40 ;
+  #ATTR_16BIT        $00 ;
+
+  #ATTR_16bits_1Mmax  ##ATTR_GRANULARITY_BYTE ##ATTR_16BIT | ;
+  #ATTR_16bits_4Gmax  ##ATTR_GRANULARITY_4K   ##ATTR_16BIT | $f | ;
+  #ATTR_32bits_4Gmax  ##ATTR_GRANULARITY_4K   ##ATTR_32BIT | $f | ;
+
+  #ACS_PRESENT $80 ;  present segment
+  #ACS_CSEG    $18 ;  code segment
+  #ACS_DSEG    $10 ;  data segment
+  #ACS_CONFORM $04 ;  conforming segment
+  #ACS_READ    $02 ;  readable segment
+  #ACS_WRITE   $02 ;  writable segment
+  #ACS_RING0   $00 ;  ring 0
+  #ACS_RING1   $20 ;  ring 1
+  #ACS_RING2   $40 ;  ring 2
+  #ACS_RING3   $60 ;  ring 3
+
+  #ACS_CODE  ##ACS_PRESENT ##ACS_CSEG ##ACS_READ  ##ACS_RING0 | | | ;
+  #ACS_DATA  ##ACS_PRESENT ##ACS_DSEG ##ACS_WRITE ##ACS_RING0 | | | ;
+  #ACS_STACK ##ACS_PRESENT ##ACS_DSEG ##ACS_WRITE ##ACS_RING0 | | | ;
+
+  #ACS_I_GATE16 $06 ; 16 bits interrupt gate
+  #ACS_I_GATE32 ##ACS_INT_GATE16 $08 | ; 32 bits interrupt gate
+
+  #ACS_INT  ##ACS_PRESENT ##ACS_I_GATE16 ##ACS_RING0 | | ;  present 16bits interrupt gate in ring0
+
+
+  ~~~~~~~~~~ funcall words (C library) ~~~~~~~~~~~~~
+* #farcoreleft // [ -- low high ] check DOS's remaining memory
+     00 062 map funcall ;
+* #farmalloc // [ high16 low16 -- offset segment ] get DOS's memory block
+     swap 02 060 map funcall ;
+* #printf  000 map funcall drop drop ;  [ string arg1 arg2 ... n -- ] printf , n is the number of given arguments
+* #sprintf 002 map funcall drop ; [ dest string arg1 arg2 ... n1 -- n2 ] sprintf , n1 is the number of given arguments. n2 is length
+
+  ~~~~~~~~~~ Useful Tools ~~~~~~~~~~~~~~~~~~~~~~~~~
+* #KEY? $0100 ##iAX! $16 int86 ##FL $40 & if 0 ret endif $0000 ##iAX! $16 int86 ##oAX 01 ; [-- [AX] key?]
+* #max over over < if swap endif drop ; [ a b - max] a b are int (signed)
+  #.seg:off s" %04x:%04x " -rot 03 ##printf ; [ seg off -- ] print seg:off
+  #dump16hex  // [ seg off -- seg off' ] print 16 hex, return new offset
+    016 -rot do       \ 16 seg off
+    over over fpeek   \ 16 seg off c
+    s" %02x " swap 02 \ 16 seg off $ c 02
+    ##printf          \ 16 seg off
+    01 +              \ 16 seg off++
+    rot 01 - dup      \ seg off++ 16-- 16--
+    dup 08 == if ." - " endif
+    0 == ?break       \ seg off++ 16--
+    -rot              \ 16-- seg off++
+    loop drop         \ seg off'
+    ;
+  #emit16  // [ seg off -- seg off' ] emit 16 characters, return new offset
+    016 -rot do     \ 16 seg off
+    over over fpeek \ 16 seg off c
+    dup 032 < if drop '. endif \ c'
+    s" %1c" swap 02 \ 16 seg off $ c 02
+    ##printf        \ 16 seg off
+    01 +            \ 16 seg off++
+    rot 01 - dup    \ seg off++ 16-- 16--
+    0 == ?break     \ seg off++ 16--
+    -rot            \ 16-- seg off++
+    loop drop       \ seg off'
+    ;
+* #d // [ seg off -- seg off' ] dump 16 bytes memroy, return new offset
+    over over ##.seg:off over over ."  " ##dump16hex drop drop ."  " ##emit16 cr
+    over over ##.seg:off over over ."  " ##dump16hex drop drop ."  " ##emit16 cr
+    ;
+* #dd    08 >A do A@ not ?break ##d -loop A> DROP ;
+* #ddd   ##dd ##dd ;
+* #dddd  ##ddd ##ddd ##ddd ##ddd ;
+* #ddddd ##dddd ##dddd ##dddd ##dddd ##dddd ##dddd ##dddd ##dddd ##dddd ##dddd ##dddd ##dddd ##dddd ##dddd ##dddd ##dddd ;
+
+  #64k_segment s" xx " ;
+  #64k_offset  s" xx " ;
+* #autoexec
+    ." Init descriptor tables . . . " ##init_descriptor_tables ." done" cr
+    ." Allocate 64k buffer for ##xD commands . . . "
+    $0001 $0010 ##farmalloc    // [high low -- fp_off fp_seg]
+    dup not if
+      ." failed !!" cr drop drop
+    else
+      // adjust to segment+1:0000
+      01 +                         \ off seg+1
+      swap $fff0 & $10 /           \ seg+1 off>>4
+      + ##64k_segment swap pokew   \ [empty]
+      ##64k_offset 0 pokew
+      ." done" cr
+    endif
+    clearcache
+    ;
+
+  ~~~~~~~~~~ farcall assembly code words (in data segment script buffer) ~~~~~~~~~~~~~
+
+  // ##scasd used CPU SCASD instruction to find given dward data in the given real mode space.
+  // [ start_seg start_off length/4 target_low target_high -- (offset true) | false ]
+  // Example : f54 pmtools.f10 $f000 $0 $4000 $535F $5F4D ##scasd .s <== 傳回 [ -- addr 1 ] f000:addr 果真指在 _SM_ 處
+* #scasd
+    s" xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx " ##inline_assembly if
+    \ $CC b,                        \ int3
+      $55 b,                        \ push         bp
+      $8B b, $EC b,                 \ mov          bp,sp
+      $8B b, $5E b, $06 b,          \ mov          bx,[bp+06]
+      $FC b,                        \ cld
+      $8B b, $47 b, $F8 b,          \ mov          ax,[bx-08]
+      $8E b, $C0 b,                 \ mov          es,ax
+      $8B b, $7F b, $FA b,          \ mov          di,[bx-06]
+      $8B b, $4F b, $FC b,          \ mov          cx,[bx-04]
+      $66 b, $8B b, $47 b, $FE b,   \ mov          eax,[bx-02]
+      $F2 b, $66 b, $AF b,          \ repnz scasd
+      $89 b, $7F b, $F8 b,          \ mov          [bx-08],di
+      $89 b, $4F b, $FA b,          \ mov          [bx-06],cx
+      $5D b,                        \ pop          bp
+      $CB b,                        \ retf
+    endif // [ start_segment[bx-8] start_offset[bx-6] length[bx-4] target_low[bx-2] target_high[bx] -- di cx length target_low target_high ]
+    farcall drop drop drop if 04 - 01 else drop 0 endif ;
+  ;
+
+
+  // ##MOVSB "move string byte" for real mode
+  // [ from_seg[bx-8] from_off[bx-6] to_seg[bx-4] to_off[bx-2] length[bx] -- ]
+  // Example : ##ds 0 ##64k_segment 0 $ffff ##MOVSB .s <== move DS to the 64k buffer
+  //           ##ds $ff00 ##dd drop drop               <== check end of DS
+  //           ##64k_segment peekw ##64k_offset peekw $ff00 + ##dd drop drop   <== check end of 64k buffer
+  // The above example works fine ! hcchen5600 2009/03/06 11:04  
+  // 有了這個，配合 Apple II 的小技巧，就成了 fill 指令了,
+  //    1. 先填要重複的幾個 byte 到 buffer 的開頭。
+  //    2. from_start to_next_repeat lengh-repeat-1 ##movsb, where from_start to_next_repeat means their segment and offset
+* #MOVSB
+    s" xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyyyy " ##inline_assembly if
+      $CD b, $03 b,        \ int  3
+      $55 b,               \ push bp
+      $89 b, $E5 b,        \ mov  bp,sp
+      $8B b, $5E b, $06 b, \ mov  bx,[bp+6]    ;<== TOS at [bp+6]
+      $1E b,               \ push ds
+      $06 b,               \ push es
+      $FC b,               \ cld
+      $8B b, $0F b,        \ mov  cx,[bx]      ; length
+      $8B b, $77 b, $FA b, \ mov  si,[bx-6]    ; from_off
+      $8B b, $7F b, $FE b, \ mov  di,[bx-2]    ; to_off
+      $8B b, $47 b, $FC b, \ mov  ax,[bx-4]    ; to_seg
+      $8E b, $C0 b,        \ mov  es,ax
+      $8B b, $47 b, $F8 b, \ mov  ax,[bx-8]    ; from_seg
+      $8E b, $D8 b,        \ mov  ds,ax        ; <== DS is the last one to be changed, or [bx] reference will be all wrong!
+      $F3 b, $A4 b,        \ repz movsb
+      $07 b,               \ pop  es
+      $1F b,               \ pop  ds
+      $5D b,               \ pop  bp
+      $CB b,               \ retf    
+    endif farcall
+    drop drop drop drop drop 
+  ;
+
+  // ##BigRealMOVSB "move string byte" You need to enter big_real_mode in prior using this macro
+  // [ from_high from_low to_high to_low length_high length_low -- ] all 3 arguments are 32 bit
+  // Example : f54.exe pmtools.f10  $c $0 $10 $0 $4 $0 ##BigRealMOVSB .s <== 用 QEMU 或 Bochs 檢查 $100000~$13ffff 等於 C000:0 ~ F000:ffff
+  //           f54.exe pmtools.f10 $10 $0 $10 $1 $4 $0 ##BigRealMOVSB .s <== 整片 $100000~$140001 都刷成與 $100000 同值, Apple II 的小技巧。
+* #BigRealMOVSB
+    swap >a >a swap >a >a swap a> a> a> a>  // high-low swap
+    s" xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyyyy " ##inline_assembly if
+      // [ from_low[bx-10] from_high[bx-8] to_low[bx-6] to_high[bx-4] length_low[bx-2] length_high[bx]  -- ]
+      $55 b,        \ push bp
+      $89 b, $E5 b, \ mov  bp,sp
+      $8B b, $5E b, \
+      $06 b,        \ mov  bx,[bp+6]    ;<== TOS at [bp+6]
+      $1E b,        \ push ds
+      $06 b,        \ push es           ;<== 注意!!! 常忘了 b,
+      $FC b,        \ cld
+      $66 b, $8B b, \
+      $4F b, $FE b, \ mov  ecx,[bx-2]   ; length_low length_high
+      $66 b, $8B b, \
+      $77 b, $F6 b, \ mov  esi,[bx-10]  ; from_low from_high
+      $66 b, $8B b, \
+      $7F b, $FA b, \ mov  edi,[bx-6]   ; to_low to_high
+      $31 b, $C0 b, \ xor  ax,ax
+      $8E b, $C0 b, \ mov  es,ax
+      $8E b, $D8 b, \ mov  ds,ax        ;<== 最後才動 DS 否則 [bx] 參考全部出錯！
+      $67 b,        \ a32
+      $F3 b, $A4 b, \ repz movsb
+      $07 b,        \ pop  es
+      $1F b,        \ pop  ds
+      $5D b,        \ pop  bp
+      $CB b,        \ retf              ;<=== 注意!!! ret or retf
+    endif farcall
+    drop drop drop drop drop drop
+  ;
+
+  // ##BigRealMOVSD "move string dword" You need to enter big_real_mode in prior using this macro
+  // [ from_high from_low to_high to_low length_high length_low -- ] all 3 arguments are 32 bit
+  // Example : f54.exe pmtools.f10  $c $0 $10 $0 $1 $0 ##BigRealMOVSD .s <== 用 QEMU 或 Bochs 檢查 $100000~$13ffff 等於 C000:0 ~ F000:ffff
+  //           f54.exe pmtools.f10 $10 $0 $10 $4 $1 $0 ##BigRealMOVSD .s <== 整片 $100000~$140003 都刷成與 $100000 同值, Apple II 的小技巧。
+* #BigRealMOVSD
+    swap >a >a swap >a >a swap a> a> a> a>  // high-low swap
+    s" xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyyyy " ##inline_assembly if
+      // [ from_low[bx-10] from_high[bx-8] to_low[bx-6] to_high[bx-4] length_low[bx-2] length_high[bx]  -- ]
+      $55 b,        \ push bp
+      $89 b, $E5 b, \ mov  bp,sp
+      $8B b, $5E b, \
+      $06 b,        \ mov  bx,[bp+6]    ;<== TOS
+      $1E b,        \ push ds
+      $06 b,        \ push es           ;<== 注意!!! 常忘了 b,
+      $FC b,        \ cld
+      $66 b, $8B b, \
+      $4F b, $FE b, \ mov  ecx,[bx-2]   ; length_low length_high
+      $66 b, $8B b, \
+      $77 b, $F6 b, \ mov  esi,[bx-10]  ; from_low from_high
+      $66 b, $8B b, \
+      $7F b, $FA b, \ mov  edi,[bx-6]   ; to_low to_high
+      $31 b, $C0 b, \ xor  ax,ax
+      $8E b, $C0 b, \ mov  es,ax
+      $8E b, $D8 b, \ mov  ds,ax        ;<== 最後才動 DS 否則 [bx] 參考全部出錯！
+      $67 b, $F3 b, \ a32 repz
+      $66 b, $A5 b, \ movsd
+      $07 b,        \ pop  es
+      $1F b,        \ pop  ds
+      $5D b,        \ pop  bp
+      $CB b,        \ retf              ;<=== 注意!!! ret or retf
+    endif farcall
+    drop drop drop drop drop drop
+  ;
+
+  // ##HALT cpu HALT until any interrupt
+* #halt \ [ -- ]
+    do
+      s" xxx " ##inline_assembly if
+      \ $CC b, \ int3
+        $f4 b,  // hlt
+        $cb b,  // retf
+      endif farcall
+      ##key? if drop ret endif
+    loop ;
+
+* #cli \ [ -- ]
+    s" xxx " ##inline_assembly if
+    \ $CC b, \ int3
+      $FA b, \ CLI
+      $cb b, \ retf
+    endif farcall ;
+
+* #sti \ [ -- ]
+    s" xxx " ##inline_assembly if
+    \ $CC b, \ int3
+      $FB b, \ STI
+      $cb b, \ retf
+    endif farcall ;
+
+  ~~~~~~~~~~ B-COMMA Assembler commands ~~~~~~~~~~~~~~~~~~~~~~~~~
+  #&b,segment b,here 04 + ; [ -- addr ]
+  #&b,offset  b,here 02 + ; [ -- addr ]
+  #b,segment! ##&b,segment swap pokew ; [ seg -- ]
+  #b,offset!  ##&b,offset  swap pokew ; [ off -- ]
+  #b,segment  ##&b,segment peekw ; [ -- seg ]
+  #b,offset   ##&b,offset  peekw ; [ -- off ]
+  #b,here@    b,here peekw ; [ -- here ]
+  #b,here!    b,here swap pokew ;  [ here -- ]
+  #b,setup    0 ##b,here! ##b,offset! ##b,segment! ;   // [ seg offset -- ] initialize b, binary code compiler
+* #inline_assembly  ##xDS swap over over ##b,setup dup peek $78 == ; [ offset -- ##xDS entry first_time? ]
+
+  ~~~~~~~~~~~~ INT86, INT86X Registers ~~~~~~~~~~~~~~~~~~~~~~~~~
+  #iAL iregs 00 + peek ; #iAH iregs 01 + peek ; #iBL iregs 02 + peek ; #iBH iregs 03 + peek ;
+  #iCL iregs 04 + peek ; #iCH iregs 05 + peek ; #iDL iregs 06 + peek ; #iDH iregs 07 + peek ;
+  #iAX iregs 00 + peekw ; #iBX iregs 02 + peekw ; #iCX iregs 04 + peekw ; #iDX iregs 06 + peekw ;
+  #iSI iregs 08 + peekw ; #iDI iregs $A + peekw ; #oAL oregs 00 + peek ; #oAH oregs 01 + peek ;
+  #oBL oregs 02 + peek ; #oBH oregs 03 + peek ; #oCL oregs 04 + peek ; #oCH oregs 05 + peek ;
+  #oDL oregs 06 + peek ; #oDH oregs 07 + peek ; #oAX oregs 00 + peekw ; #oBX oregs 02 + peekw ;
+  #oCX oregs 04 + peekw ; #oDX oregs 06 + peekw ; #oSI oregs 08 + peekw ; #oDI oregs $A + peekw ;
+  #CY oregs $C + peek ; #FL oregs $E + peekw ; #ES sregs 00 + peekw ; #CS sregs 02 + peekw ;
+  #SS sregs 04 + peekw ; #DS sregs 06 + peekw ; #iAL! iregs 00 + swap poke ; #iAH! iregs 01 + swap poke ;
+  #iBL! iregs 02 + swap poke ; #iBH! iregs 03 + swap poke ; #iCL! iregs 04 + swap poke ; #iCH! iregs 05 + swap poke ;
+  #iDL! iregs 06 + swap poke ; #iDH! iregs 07 + swap poke ; #iSI! iregs 08 + swap pokew ; #iDI! iregs $A + swap pokew ;
+  #iAX! iregs 00 + swap pokew ; #iBX! iregs 02 + swap pokew ; #iCX! iregs 04 + swap pokew ; #iDX! iregs 06 + swap pokew ;
+  #ES! sregs 00 + swap pokew ; #CS! sregs 02 + swap pokew ; #SS! sregs 04 + swap pokew ; #DS! sregs 06 + swap pokew ;
+  #xDS read_msw 01 & pushfd drop 02 & 02 ^ AND if $40 else ##DS endif ; // PMode 時的 executable DS 定為 GDT 40h
